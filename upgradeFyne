@@ -1,0 +1,6 @@
+#!/bin/bash
+
+go get fyne.io/fyne/v2@$1
+go mod tidy
+echo DONE
+pwd
