@@ -12,7 +12,18 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var mainWindow fyne.Window
+const (
+	RESET = "\033[0m"
+	GREEN = "\033[;32m"
+	RED   = "\033[;31m"
+)
+
+var (
+	mainWindow fyne.Window
+	stdOut     = NewMyWriter(1)
+	stdErr     = NewMyWriter(2)
+	prefix     = []string{RESET, GREEN, RED}
+)
 
 type MyWriter struct {
 	id int
@@ -22,8 +33,12 @@ func NewMyWriter(id int) *MyWriter {
 	return &MyWriter{id: id}
 }
 
+func (mw *MyWriter) WriteStr(s string) (n int, err error) {
+	return mw.Write([]byte(s))
+}
+
 func (mw *MyWriter) Write(p []byte) (n int, err error) {
-	fmt.Printf("ZZZZZ\n\n\n\n\n\n %d[] ", len(p))
+	fmt.Printf("%s%s%s", prefix[mw.id], string(p), RESET)
 	return len(p), nil
 }
 
@@ -43,9 +58,9 @@ type ActionData struct {
 var actionList = make(map[string]*ActionData)
 
 func main() {
+	stdOut.Write([]byte("\033[;32mGreen Text\033[0m\n"))
 	AddAction("List", "ls", []string{"-lta"}, "")
-	AddAction("Last", "cat", []string{"/var/log/syslog"}, "")
-	// AddAction("Last", "echo", []string{"World"}, "")
+	AddAction("Last", "cat", []string{"/var/log/s"}, "")
 	AddAction("Push", "git", []string{"push"}, "stuartdd\nhi")
 	gui()
 }
@@ -56,9 +71,9 @@ func newSingleAction(cmd string, args []string, input string) *SingleAction {
 
 func newActionData(action string) *ActionData {
 	btn := widget.NewButtonWithIcon(action, theme.LogoutIcon(), func() {
-		err := execMultipleAction(action)
+		err := execMultipleAction(action, stdOut, stdErr)
 		if err != nil {
-			fmt.Printf("%s", err.Error())
+			stdErr.WriteStr(fmt.Sprintf("%s\n", err.Error()))
 		}
 	})
 	return &ActionData{action: action, commands: make([]*SingleAction, 0), btn: btn}
@@ -120,10 +135,10 @@ func action(exec, data1, data2 string) {
 	}
 }
 
-func execMultipleAction(key string) error {
+func execMultipleAction(key string, stdOut, stdErr *MyWriter) error {
 	data := actionList[key]
 	for _, act := range data.commands {
-		execSingleAction(act)
+		execSingleAction(act, stdOut, stdErr)
 		if act.err != nil {
 			return act.err
 		}
@@ -131,13 +146,13 @@ func execMultipleAction(key string) error {
 	return nil
 }
 
-func execSingleAction(sa *SingleAction) {
+func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) {
 	cmd := exec.Command(sa.command, sa.args...)
 	// if sa.sysin != "" {
 	// 	cmd.Stdin = strings.NewReader(sa.sysin)
 	// }
-	cmd.Stdout = NewMyWriter(1)
-	cmd.Stderr = NewMyWriter(2)
+	cmd.Stdout = stdOut
+	cmd.Stderr = stdErr
 	sa.err = cmd.Start()
 	if sa.err != nil {
 		return
@@ -146,8 +161,11 @@ func execSingleAction(sa *SingleAction) {
 }
 
 func actionClose(data string, code int) {
+	if code != 0 {
+		stdErr.WriteStr(fmt.Sprintf("%s. Return code[%d]\n", data, code))
+	}
 	if data != "" {
-		fmt.Println(data)
+		stdOut.WriteStr(fmt.Sprintf("%s\n", data))
 	}
 	mainWindow.Close()
 	os.Exit(code)
