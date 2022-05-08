@@ -16,26 +16,60 @@ import (
 
 var mainWindow fyne.Window
 
-type JsonData struct {
-	action string
-	data1  []string
-	data2  []string
+type SingleAction struct {
+	command string
+	args    []string
+	in      string
 }
 
+type ActionData struct {
+	action   string
+	btn      *widget.Button
+	commands []*SingleAction
+}
+
+var actionList = make(map[string]*ActionData)
+
 func main() {
+	AddAction("List", "ls", []string{"-lta"})
+	AddAction("Last", "echo", []string{"Hello"})
+	AddAction("Last", "echo", []string{"World"})
 	gui()
+}
+
+func newSingleAction(cmd string, args []string, input string) *SingleAction {
+	return &SingleAction{command: cmd, args: args, in: input}
+}
+
+func newActionData(action string) *ActionData {
+	btn := widget.NewButtonWithIcon(action, theme.LogoutIcon(), func() {
+		execMultipleAction(action)
+	})
+	return &ActionData{action: action, commands: make([]*SingleAction, 0), btn: btn}
+}
+
+func (p *ActionData) addSingleAction(cmd string, data []string) {
+	sa := newSingleAction(cmd, data)
+	p.commands = append(p.commands, sa)
+}
+
+func AddAction(name, cmd string, data []string) {
+	ac, ok := actionList[name]
+	if !ok {
+		ac = newActionData(name)
+		actionList[name] = ac
+	}
+	ac.addSingleAction(cmd, data)
 }
 
 func gui() {
 	a := app.NewWithID("stuartdd.gtest")
 	mainWindow = a.NewWindow("Main Window")
 	mainWindow.SetCloseIntercept(func() {
-		actionClose([]string{}, 0)
+		actionClose("", 0)
 	})
 	bb := buttonBar(action)
-	cp := centerPanel(func(exec string, data []string) {
-		action(exec, data)
-	})
+	cp := centerPanel()
 	c := container.NewBorder(bb, nil, nil, nil, cp)
 	mainWindow.SetContent(c)
 	mainWindow.SetMaster()
@@ -44,48 +78,57 @@ func gui() {
 	mainWindow.ShowAndRun()
 }
 
-func centerPanel(exec func(action string, data []string)) *fyne.Container {
+func centerPanel() *fyne.Container {
 	vp := container.NewVBox()
-	vp.Add(widget.NewButtonWithIcon("Exec", theme.LogoutIcon(), func() {
-		exec("exec", []string{"ls", "-lta"})
-	}))
+	for _, l := range actionList {
+		hp := container.NewHBox()
+		hp.Add(l.btn)
+		hp.Add(widget.NewLabel(l.action))
+		vp.Add(hp)
+	}
 	return vp
 }
 
-func buttonBar(exec func(action string, data []string)) *fyne.Container {
+func buttonBar(exec func(string, string, string)) *fyne.Container {
 	bb := container.NewHBox()
 	bb.Add(widget.NewButtonWithIcon("Exit", theme.LogoutIcon(), func() {
-		exec("exit", []string{})
+		exec("exit", "", "")
 	}))
 	return bb
 }
 
-func action(exec string, data []string) {
+func action(exec, data1, data2 string) {
 	switch exec {
 	case "exit":
-		actionClose(data, 0)
-	case "exec":
-		actionExec(data)
+		actionClose(data1, 0)
 	}
 }
 
-func actionExec(data []string, sysin []string) {
-	cmd := exec.Command(data[0], data[1:]...)
-	// cmd.Stdin = strings.NewReader("and old falcon")
+func execMultipleAction(key string) {
+	data := actionList[key]
+	for _, act := range data.commands {
+		execSingleAction(act)
+	}
+}
 
-	var out bytes.Buffer
-	cmd.Stdout = &out
-
+func execSingleAction(sa *SingleAction) {
+	cmd := exec.Command(sa.command, sa.args...)
+	if sa.in != "" {
+		var
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Print(out.String())
+	fmt.Print(stdout.String())
 }
 
-func actionClose(data []string, code int) {
-	if len(data) > 0 {
+func actionClose(data string, code int) {
+	if data != "" {
 		fmt.Println(data)
 	}
 	mainWindow.Close()
