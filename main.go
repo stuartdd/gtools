@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 
@@ -16,10 +14,24 @@ import (
 
 var mainWindow fyne.Window
 
+type MyWriter struct {
+	id int
+}
+
+func NewMyWriter(id int) *MyWriter {
+	return &MyWriter{id: id}
+}
+
+func (mw *MyWriter) Write(p []byte) (n int, err error) {
+	fmt.Printf("ZZZZZ\n\n\n\n\n\n %d[] ", len(p))
+	return len(p), nil
+}
+
 type SingleAction struct {
 	command string
 	args    []string
-	in      string
+	sysin   string
+	err     error
 }
 
 type ActionData struct {
@@ -31,35 +43,39 @@ type ActionData struct {
 var actionList = make(map[string]*ActionData)
 
 func main() {
-	AddAction("List", "ls", []string{"-lta"})
-	AddAction("Last", "echo", []string{"Hello"})
-	AddAction("Last", "echo", []string{"World"})
+	AddAction("List", "ls", []string{"-lta"}, "")
+	AddAction("Last", "cat", []string{"/var/log/syslog"}, "")
+	// AddAction("Last", "echo", []string{"World"}, "")
+	AddAction("Push", "git", []string{"push"}, "stuartdd\nhi")
 	gui()
 }
 
 func newSingleAction(cmd string, args []string, input string) *SingleAction {
-	return &SingleAction{command: cmd, args: args, in: input}
+	return &SingleAction{command: cmd, args: args, sysin: input}
 }
 
 func newActionData(action string) *ActionData {
 	btn := widget.NewButtonWithIcon(action, theme.LogoutIcon(), func() {
-		execMultipleAction(action)
+		err := execMultipleAction(action)
+		if err != nil {
+			fmt.Printf("%s", err.Error())
+		}
 	})
 	return &ActionData{action: action, commands: make([]*SingleAction, 0), btn: btn}
 }
 
-func (p *ActionData) addSingleAction(cmd string, data []string) {
-	sa := newSingleAction(cmd, data)
+func (p *ActionData) addSingleAction(cmd string, data []string, input string) {
+	sa := newSingleAction(cmd, data, input)
 	p.commands = append(p.commands, sa)
 }
 
-func AddAction(name, cmd string, data []string) {
+func AddAction(name, cmd string, data []string, in string) {
 	ac, ok := actionList[name]
 	if !ok {
 		ac = newActionData(name)
 		actionList[name] = ac
 	}
-	ac.addSingleAction(cmd, data)
+	ac.addSingleAction(cmd, data, in)
 }
 
 func gui() {
@@ -104,27 +120,29 @@ func action(exec, data1, data2 string) {
 	}
 }
 
-func execMultipleAction(key string) {
+func execMultipleAction(key string) error {
 	data := actionList[key]
 	for _, act := range data.commands {
 		execSingleAction(act)
+		if act.err != nil {
+			return act.err
+		}
 	}
+	return nil
 }
 
 func execSingleAction(sa *SingleAction) {
 	cmd := exec.Command(sa.command, sa.args...)
-	if sa.in != "" {
-		var
+	// if sa.sysin != "" {
+	// 	cmd.Stdin = strings.NewReader(sa.sysin)
+	// }
+	cmd.Stdout = NewMyWriter(1)
+	cmd.Stderr = NewMyWriter(2)
+	sa.err = cmd.Start()
+	if sa.err != nil {
+		return
 	}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Print(stdout.String())
+	sa.err = cmd.Wait()
 }
 
 func actionClose(data string, code int) {
