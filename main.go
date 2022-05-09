@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 
@@ -32,12 +31,6 @@ type myWriter struct {
 	id int
 }
 
-type myReader struct {
-	id   int
-	pos  int
-	resp []byte
-}
-
 type SingleAction struct {
 	command string
 	args    []string
@@ -49,26 +42,6 @@ type ActionData struct {
 	action   string
 	btn      *widget.Button
 	commands []*SingleAction
-}
-
-func newMyReader(id int, s string) *myReader {
-	return &myReader{id: id, resp: []byte(s)}
-}
-
-func (mr *myReader) Read(p []byte) (n int, err error) {
-	i := len(mr.resp) - mr.pos
-	if len(p) < i {
-		i = len(p)
-	}
-	j := 0
-	for ; j < i; j++ {
-		p[j] = mr.resp[mr.pos]
-		mr.pos++
-	}
-	if i <= 0 {
-		return 0, io.EOF
-	}
-	return i, nil
 }
 
 func newMyWriter(id int) *myWriter {
@@ -89,7 +62,8 @@ func main() {
 	AddAction("List", "ls", []string{"-lta"}, "")
 	AddAction("Last", "cat", []string{"/var/log/s"}, "")
 	AddAction("Test", "./bashin.sh", []string{}, "Stuart\nBoy")
-	AddAction("Push", "git", []string{"push"}, "stuartdd\nBoy")
+	AddAction("Push", "ls", []string{}, "")
+	AddAction("Push", "./bashin1.sh", []string{}, "")
 	gui()
 }
 
@@ -177,7 +151,7 @@ func execMultipleAction(key string, stdOut, stdErr *myWriter) error {
 func execSingleAction(sa *SingleAction, stdOut, stdErr *myWriter) {
 	cmd := exec.Command(sa.command, sa.args...)
 	if sa.sysin != "" {
-		cmd.Stdin = newMyReader(1, sa.sysin)
+		cmd.Stdin = NewStringReader(1, sa.sysin)
 	}
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
