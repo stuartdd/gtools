@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 
@@ -16,6 +17,7 @@ const (
 	RESET = "\033[0m"
 	GREEN = "\033[;32m"
 	RED   = "\033[;31m"
+	resp  = "Hello\nWorld\n"
 )
 
 var (
@@ -29,8 +31,37 @@ type MyWriter struct {
 	id int
 }
 
+type MyReader struct {
+	id   int
+	pos  int
+	resp []byte
+}
+
+func NewMyReader(id int, s string) *MyReader {
+	return &MyReader{id: id, resp: []byte(s)}
+}
+
 func NewMyWriter(id int) *MyWriter {
 	return &MyWriter{id: id}
+}
+
+func (mr *MyReader) Read(p []byte) (n int, err error) {
+	i := len(mr.resp) - mr.pos
+	if len(p) < i {
+		i = len(p)
+	}
+	j := 0
+	for ; j < i; j++ {
+		p[j] = mr.resp[mr.pos]
+		mr.pos++
+	}
+	for j = i; j < len(p); j++ {
+		p[j] = 0
+	}
+	if i <= 0 {
+		return 0, io.EOF
+	}
+	return i, nil
 }
 
 func (mw *MyWriter) WriteStr(s string) (n int, err error) {
@@ -58,13 +89,42 @@ type ActionData struct {
 var actionList = make(map[string]*ActionData)
 
 func main() {
-	stdOut.Write([]byte("\033[;32mGreen Text\033[0m\n"))
-	AddAction("List", "ls", []string{"-lta"}, "")
-	AddAction("Last", "cat", []string{"/var/log/s"}, "")
-	AddAction("Push", "git", []string{"push"}, "stuartdd\nhi")
-	gui()
+	testReader()
+	// stdOut.Write([]byte("\033[;32mGreen Text\033[0m\n"))
+	// AddAction("List", "ls", []string{"-lta"}, "")
+	// AddAction("Last", "cat", []string{"/var/log/s"}, "")
+	// AddAction("Push", "git", []string{"push"}, "stuartdd\nhi")
+	// gui()
 }
 
+func testReader() {
+	mr := NewMyReader(0, "0123456")
+	b := make([]byte, 3)
+	c, e := mr.Read(b)
+	if e != nil {
+		fmt.Printf("%d %s %s\n", c, string(b), e.Error())
+	} else {
+		fmt.Printf("%d %s\n", c, string(b))
+	}
+	c, e = mr.Read(b)
+	if e != nil {
+		fmt.Printf("%d %s %s\n", c, string(b), e.Error())
+	} else {
+		fmt.Printf("%d %s\n", c, string(b))
+	}
+	c, e = mr.Read(b)
+	if e != nil {
+		fmt.Printf("%d %s %s\n", c, string(b), e.Error())
+	} else {
+		fmt.Printf("%d %s\n", c, string(b))
+	}
+	c, e = mr.Read(b)
+	if e != nil {
+		fmt.Printf("%d %s %s\n", c, string(b), e.Error())
+	} else {
+		fmt.Printf("%d %s\n", c, string(b))
+	}
+}
 func newSingleAction(cmd string, args []string, input string) *SingleAction {
 	return &SingleAction{command: cmd, args: args, sysin: input}
 }
