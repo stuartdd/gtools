@@ -22,55 +22,20 @@ const (
 
 var (
 	mainWindow fyne.Window
-	stdOut     = NewMyWriter(1)
-	stdErr     = NewMyWriter(2)
+	stdOut     = newMyWriter(1)
+	stdErr     = newMyWriter(2)
 	prefix     = []string{RESET, GREEN, RED}
+	actionList = make(map[string]*ActionData)
 )
 
-type MyWriter struct {
+type myWriter struct {
 	id int
 }
 
-type MyReader struct {
+type myReader struct {
 	id   int
 	pos  int
 	resp []byte
-}
-
-func NewMyReader(id int, s string) *MyReader {
-	return &MyReader{id: id, resp: []byte(s)}
-}
-
-func NewMyWriter(id int) *MyWriter {
-	return &MyWriter{id: id}
-}
-
-func (mr *MyReader) Read(p []byte) (n int, err error) {
-	i := len(mr.resp) - mr.pos
-	if len(p) < i {
-		i = len(p)
-	}
-	j := 0
-	for ; j < i; j++ {
-		p[j] = mr.resp[mr.pos]
-		mr.pos++
-	}
-	for j = i; j < len(p); j++ {
-		p[j] = 0
-	}
-	if i <= 0 {
-		return 0, io.EOF
-	}
-	return i, nil
-}
-
-func (mw *MyWriter) WriteStr(s string) (n int, err error) {
-	return mw.Write([]byte(s))
-}
-
-func (mw *MyWriter) Write(p []byte) (n int, err error) {
-	fmt.Printf("%s%s%s", prefix[mw.id], string(p), RESET)
-	return len(p), nil
 }
 
 type SingleAction struct {
@@ -86,45 +51,48 @@ type ActionData struct {
 	commands []*SingleAction
 }
 
-var actionList = make(map[string]*ActionData)
+func newMyReader(id int, s string) *myReader {
+	return &myReader{id: id, resp: []byte(s)}
+}
+
+func (mr *myReader) Read(p []byte) (n int, err error) {
+	i := len(mr.resp) - mr.pos
+	if len(p) < i {
+		i = len(p)
+	}
+	j := 0
+	for ; j < i; j++ {
+		p[j] = mr.resp[mr.pos]
+		mr.pos++
+	}
+	if i <= 0 {
+		return 0, io.EOF
+	}
+	return i, nil
+}
+
+func newMyWriter(id int) *myWriter {
+	return &myWriter{id: id}
+}
+
+func (mw *myWriter) WriteStr(s string) (n int, err error) {
+	return mw.Write([]byte(s))
+}
+
+func (mw *myWriter) Write(p []byte) (n int, err error) {
+	fmt.Printf("%s%s%s", prefix[mw.id], string(p), RESET)
+	return len(p), nil
+}
 
 func main() {
-	testReader()
-	// stdOut.Write([]byte("\033[;32mGreen Text\033[0m\n"))
-	// AddAction("List", "ls", []string{"-lta"}, "")
-	// AddAction("Last", "cat", []string{"/var/log/s"}, "")
-	// AddAction("Push", "git", []string{"push"}, "stuartdd\nhi")
-	// gui()
+	stdOut.Write([]byte("\033[;32mGreen Text\033[0m\n"))
+	AddAction("List", "ls", []string{"-lta"}, "")
+	AddAction("Last", "cat", []string{"/var/log/s"}, "")
+	AddAction("Test", "./bashin.sh", []string{}, "Stuart\nBoy")
+	AddAction("Push", "git", []string{"push"}, "stuartdd\nBoy")
+	gui()
 }
 
-func testReader() {
-	mr := NewMyReader(0, "0123456")
-	b := make([]byte, 3)
-	c, e := mr.Read(b)
-	if e != nil {
-		fmt.Printf("%d %s %s\n", c, string(b), e.Error())
-	} else {
-		fmt.Printf("%d %s\n", c, string(b))
-	}
-	c, e = mr.Read(b)
-	if e != nil {
-		fmt.Printf("%d %s %s\n", c, string(b), e.Error())
-	} else {
-		fmt.Printf("%d %s\n", c, string(b))
-	}
-	c, e = mr.Read(b)
-	if e != nil {
-		fmt.Printf("%d %s %s\n", c, string(b), e.Error())
-	} else {
-		fmt.Printf("%d %s\n", c, string(b))
-	}
-	c, e = mr.Read(b)
-	if e != nil {
-		fmt.Printf("%d %s %s\n", c, string(b), e.Error())
-	} else {
-		fmt.Printf("%d %s\n", c, string(b))
-	}
-}
 func newSingleAction(cmd string, args []string, input string) *SingleAction {
 	return &SingleAction{command: cmd, args: args, sysin: input}
 }
@@ -195,7 +163,7 @@ func action(exec, data1, data2 string) {
 	}
 }
 
-func execMultipleAction(key string, stdOut, stdErr *MyWriter) error {
+func execMultipleAction(key string, stdOut, stdErr *myWriter) error {
 	data := actionList[key]
 	for _, act := range data.commands {
 		execSingleAction(act, stdOut, stdErr)
@@ -206,11 +174,11 @@ func execMultipleAction(key string, stdOut, stdErr *MyWriter) error {
 	return nil
 }
 
-func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) {
+func execSingleAction(sa *SingleAction, stdOut, stdErr *myWriter) {
 	cmd := exec.Command(sa.command, sa.args...)
-	// if sa.sysin != "" {
-	// 	cmd.Stdin = strings.NewReader(sa.sysin)
-	// }
+	if sa.sysin != "" {
+		cmd.Stdin = newMyReader(1, sa.sysin)
+	}
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
 	sa.err = cmd.Start()
