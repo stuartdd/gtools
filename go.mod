@@ -2,7 +2,10 @@ module stuartdd.com/gtool
 
 go 1.18
 
-require fyne.io/fyne/v2 v2.1.4-0.20220420185608-436df62b722f
+require (
+	fyne.io/fyne/v2 v2.1.4-0.20220420185608-436df62b722f
+	github.com/stuartdd2/JsonParser4go/parser v0.0.0-20220502134404-5ff371a3430e
+)
 
 require (
 	fyne.io/systray v1.9.1-0.20220331100914-9177bf851614 // indirect

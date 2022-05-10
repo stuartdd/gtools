@@ -16,83 +16,33 @@ const (
 	RESET = "\033[0m"
 	GREEN = "\033[;32m"
 	RED   = "\033[;31m"
-	resp  = "Hello\nWorld\n"
+
+	STD_OUT = 0
+	STD_ERR = 1
+	STD_IN  = 2
 )
 
 var (
 	mainWindow fyne.Window
-	stdOut     = newMyWriter(1)
-	stdErr     = newMyWriter(2)
-	prefix     = []string{RESET, GREEN, RED}
-	actionList = make(map[string]*ActionData)
+	prefix     = []string{GREEN, RED}
+	model      *Model
 )
 
-type myWriter struct {
-	id int
-}
-
-type SingleAction struct {
-	command string
-	args    []string
-	sysin   string
-	err     error
-}
-
-type ActionData struct {
-	action   string
-	btn      *widget.Button
-	commands []*SingleAction
-}
-
-func newMyWriter(id int) *myWriter {
-	return &myWriter{id: id}
-}
-
-func (mw *myWriter) WriteStr(s string) (n int, err error) {
-	return mw.Write([]byte(s))
-}
-
-func (mw *myWriter) Write(p []byte) (n int, err error) {
-	fmt.Printf("%s%s%s", prefix[mw.id], string(p), RESET)
-	return len(p), nil
-}
-
 func main() {
-	stdOut.Write([]byte("\033[;32mGreen Text\033[0m\n"))
-	AddAction("List", "ls", []string{"-lta"}, "")
-	AddAction("Last", "cat", []string{"/var/log/s"}, "")
-	AddAction("Test", "./bashin.sh", []string{}, "Stuart\nBoy")
-	AddAction("Push", "ls", []string{}, "")
-	AddAction("Push", "./bashin1.sh", []string{}, "")
+	m, err := NewModelFromFile("config.json")
+	if err != nil {
+		exitApp(err.Error(), 1)
+	}
+	model = m
+	err = model.loadActions()
+	if err != nil {
+		exitApp(err.Error(), 1)
+	}
 	gui()
 }
 
 func newSingleAction(cmd string, args []string, input string) *SingleAction {
 	return &SingleAction{command: cmd, args: args, sysin: input}
-}
-
-func newActionData(action string) *ActionData {
-	btn := widget.NewButtonWithIcon(action, theme.LogoutIcon(), func() {
-		err := execMultipleAction(action, stdOut, stdErr)
-		if err != nil {
-			stdErr.WriteStr(fmt.Sprintf("%s\n", err.Error()))
-		}
-	})
-	return &ActionData{action: action, commands: make([]*SingleAction, 0), btn: btn}
-}
-
-func (p *ActionData) addSingleAction(cmd string, data []string, input string) {
-	sa := newSingleAction(cmd, data, input)
-	p.commands = append(p.commands, sa)
-}
-
-func AddAction(name, cmd string, data []string, in string) {
-	ac, ok := actionList[name]
-	if !ok {
-		ac = newActionData(name)
-		actionList[name] = ac
-	}
-	ac.addSingleAction(cmd, data, in)
 }
 
 func gui() {
@@ -113,10 +63,13 @@ func gui() {
 
 func centerPanel() *fyne.Container {
 	vp := container.NewVBox()
-	for _, l := range actionList {
+	for _, l := range model.actionList {
 		hp := container.NewHBox()
-		hp.Add(l.btn)
-		hp.Add(widget.NewLabel(l.action))
+		btn := widget.NewButtonWithIcon(l.action, theme.SettingsIcon(), func() {
+			execMultipleAction(l.action)
+		})
+		hp.Add(btn)
+		hp.Add(widget.NewLabel(l.desc))
 		vp.Add(hp)
 	}
 	return vp
@@ -124,9 +77,10 @@ func centerPanel() *fyne.Container {
 
 func buttonBar(exec func(string, string, string)) *fyne.Container {
 	bb := container.NewHBox()
-	bb.Add(widget.NewButtonWithIcon("Exit", theme.LogoutIcon(), func() {
+	bb.Add(widget.NewButtonWithIcon("Close", theme.LogoutIcon(), func() {
 		exec("exit", "", "")
 	}))
+	bb.Add(widget.NewLabel(fmt.Sprintf("Config data file '%s'", model.fileName)))
 	return bb
 }
 
@@ -137,24 +91,32 @@ func action(exec, data1, data2 string) {
 	}
 }
 
-func execMultipleAction(key string, stdOut, stdErr *myWriter) error {
-	data := actionList[key]
-	for _, act := range data.commands {
-		execSingleAction(act, stdOut, stdErr)
-		if act.err != nil {
-			return act.err
-		}
+func execMultipleAction(key string) {
+	data, ok := model.actionList[key]
+	if ok {
+		stdOut := NewMyWriter(STD_OUT)
+		stdErr := NewMyWriter(STD_ERR)
+		go func() {
+			for _, act := range data.commands {
+				execSingleAction(act, stdOut, stdErr)
+				if act.err != nil {
+					stdErr.WriteStr(act.err.Error())
+					stdErr.WriteStr("\n")
+					return
+				}
+			}
+		}()
 	}
-	return nil
 }
 
 func execSingleAction(sa *SingleAction, stdOut, stdErr *myWriter) {
 	cmd := exec.Command(sa.command, sa.args...)
 	if sa.sysin != "" {
-		cmd.Stdin = NewStringReader(1, sa.sysin)
+		cmd.Stdin = NewStringReader(STD_IN, sa.sysin)
 	}
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
+	sa.err = nil
 	sa.err = cmd.Start()
 	if sa.err != nil {
 		return
@@ -163,12 +125,17 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *myWriter) {
 }
 
 func actionClose(data string, code int) {
-	if code != 0 {
-		stdErr.WriteStr(fmt.Sprintf("%s. Return code[%d]\n", data, code))
-	}
-	if data != "" {
-		stdOut.WriteStr(fmt.Sprintf("%s\n", data))
-	}
 	mainWindow.Close()
+	exitApp(data, code)
+}
+
+func exitApp(data string, code int) {
+	if code != 0 {
+		fmt.Printf("%sEXIT CODE[%d]:%s%s", prefix[STD_ERR], code, data, RESET)
+	} else {
+		if data != "" {
+			fmt.Printf("%s%s%s", prefix[STD_OUT], data, RESET)
+		}
+	}
 	os.Exit(code)
 }

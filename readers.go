@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"time"
 )
@@ -11,6 +12,10 @@ type StringReader struct {
 	resp    []byte
 	delay   bool
 	delayMs int64
+}
+
+type myWriter struct {
+	id int
 }
 
 func NewStringReader(id int, s string) *StringReader {
@@ -40,4 +45,17 @@ func (mr *StringReader) Read(p []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 	return j, nil
+}
+
+func NewMyWriter(id int) *myWriter {
+	return &myWriter{id: id}
+}
+
+func (mw *myWriter) WriteStr(s string) (n int, err error) {
+	return mw.Write([]byte(s))
+}
+
+func (mw *myWriter) Write(p []byte) (n int, err error) {
+	fmt.Printf("%s%s%s", prefix[mw.id], string(p), RESET)
+	return len(p), nil
 }
