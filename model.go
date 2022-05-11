@@ -59,7 +59,8 @@ func (m *Model) loadActions() error {
 		if !actionNode.IsContainer() {
 			return fmt.Errorf("node at '%s.%s' is not a container node", actionsPrefName, actionNode.GetName())
 		}
-		actionData, ok := m.actionList[actionNode.GetName()]
+		actionName := actionNode.GetName()
+		actionData, ok := m.actionList[actionName]
 		if !ok {
 			name, err := getStringNode(actionNode.(parser.NodeC), "name", actionNode.GetName())
 			if err != nil {
@@ -70,14 +71,14 @@ func (m *Model) loadActions() error {
 				return err
 			}
 			actionData = NewActionData(name, desc)
-			m.actionList[name] = actionData
+			m.actionList[actionName] = actionData
 		}
 		cmdList, err := getListNode(actionNode.(parser.NodeC), "list")
 		if err != nil {
 			return err
 		}
 		for i, cmdNode := range cmdList.GetValues() {
-			msg := fmt.Sprintf("%s -> %s[%d]", actionNode.GetName(), cmdList.GetName(), i)
+			msg := fmt.Sprintf("%s -> %s[%d]", actionName, cmdList.GetName(), i)
 			if cmdNode.GetNodeType() != parser.NT_OBJECT {
 				return fmt.Errorf("node at %s is not an object node", msg)
 			}

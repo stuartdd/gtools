@@ -1,6 +1,6 @@
 {
     "actions": {
-        "list": {
+        "listDir": {
             "name": "List",
             "desc": "List directory",
             "list": [
@@ -17,6 +17,30 @@
                     "data": [
                         "DONE"
                     ],
+                    "in": ""
+                }
+            ]
+        },
+        "gitConfig": {
+            "name": "Git Config",
+            "desc": "Push to git",
+            "list": [
+                {
+                    "cmd": "git",
+                    "data": [
+                        "config", "-l"
+                    ],
+                    "in": ""
+                }
+            ]
+        },
+        "gitPush": {
+            "name": "Git Push",
+            "desc": "Push to git",
+            "list": [
+                {
+                    "cmd": "gitpushsdd.sh",
+                    "data": [],
                     "in": ""
                 }
             ]
