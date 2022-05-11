@@ -29,6 +29,7 @@ type SingleAction struct {
 	args    []string
 	sysin   string
 	err     error
+	delay   float64
 }
 
 func NewModelFromFile(fileName string) (*Model, error) {
@@ -92,7 +93,11 @@ func (m *Model) loadActions() error {
 			if err != nil {
 				return err
 			}
-			actionData.addSingleAction(cmd, data, in)
+			delay, err := getNumberNode(cmdNode.(parser.NodeC), "delay", msg, 0.0)
+			if err != nil {
+				return err
+			}
+			actionData.AddSingleAction(cmd, data, in, delay)
 		}
 		if actionData.len() == 0 {
 			return fmt.Errorf("no commands found for action '%s' with description '%s'", actionData.action, actionData.desc)
@@ -114,6 +119,17 @@ func getStringNode(node parser.NodeC, name, msg string) (string, error) {
 		return "", fmt.Errorf("action node '%s' does not contain the 'String' node '%s'", msg, name)
 	}
 	return a.String(), nil
+}
+
+func getNumberNode(node parser.NodeC, name, msg string, def float64) (float64, error) {
+	a := node.GetNodeWithName(name)
+	if a == nil {
+		return def, nil
+	}
+	if a.GetNodeType() != parser.NT_NUMBER {
+		return 0, fmt.Errorf("action node '%s' does not contain a 'Number' node '%s'", msg, name)
+	}
+	return a.(*parser.JsonNumber).GetValue(), nil
 }
 
 func getListNode(node parser.NodeC, name string) (parser.NodeC, error) {
@@ -140,8 +156,12 @@ func NewActionData(action string, desc string) *ActionData {
 	return &ActionData{action: action, desc: desc, commands: make([]*SingleAction, 0)}
 }
 
-func (p *ActionData) addSingleAction(cmd string, data []string, input string) {
-	sa := newSingleAction(cmd, data, input)
+func NewSingleAction(cmd string, args []string, input string, delay float64) *SingleAction {
+	return &SingleAction{command: cmd, args: args, sysin: input, delay: delay}
+}
+
+func (p *ActionData) AddSingleAction(cmd string, data []string, input string, delay float64) {
+	sa := NewSingleAction(cmd, data, input, delay)
 	p.commands = append(p.commands, sa)
 }
 

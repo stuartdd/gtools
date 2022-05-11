@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -39,10 +40,6 @@ func main() {
 		exitApp(err.Error(), 1)
 	}
 	gui()
-}
-
-func newSingleAction(cmd string, args []string, input string) *SingleAction {
-	return &SingleAction{command: cmd, args: args, sysin: input}
 }
 
 func gui() {
@@ -122,6 +119,9 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *myWriter) {
 		return
 	}
 	sa.err = cmd.Wait()
+	if sa.delay > 0.0 {
+		time.Sleep(time.Duration(sa.delay) * time.Millisecond)
+	}
 }
 
 func actionClose(data string, code int) {

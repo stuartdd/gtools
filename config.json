@@ -1,15 +1,26 @@
 {
     "actions": {
-        "run": {
+        "list": {
             "name": "List",
             "desc": "List directory",
             "list": [
                 {
                     "cmd": "ls",
-                    "data": ["-lta"],
+                    "data": [
+                        "-lta"
+                    ],
+                    "in": "",
+                    "delay": 1000
+                },
+                {
+                    "cmd": "echo",
+                    "data": [
+                        "DONE"
+                    ],
                     "in": ""
                 }
             ]
         }
     }
+
 }
