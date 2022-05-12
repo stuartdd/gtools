@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 	"time"
 )
 
@@ -14,8 +15,32 @@ type StringReader struct {
 	delayMs int64
 }
 
+type FileWriter struct {
+	fileName string
+	file     *os.File
+	canWrite bool
+}
+
 type myWriter struct {
 	id int
+}
+
+func NewMyFileWriter(fileName string) (*FileWriter, error) {
+	f, err := os.Create("/tmp/dat2")
+	if err != nil {
+		return nil, err
+	}
+	return &FileWriter{fileName: fileName, file: f, canWrite: true}, nil
+}
+
+func (mw *FileWriter) Close() {
+	mw.canWrite = false
+	mw.file.Close()
+}
+
+func (mw *FileWriter) Write(p []byte) (n int, err error) {
+	mw.file.Write(p)
+	return len(p), nil
 }
 
 func NewStringReader(id int, s string) *StringReader {

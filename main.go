@@ -29,6 +29,12 @@ var (
 	model      *Model
 )
 
+type ActionButton struct {
+	widget.Button
+	action *ActionData
+	tapped func(action *ActionData)
+}
+
 func main() {
 	m, err := NewModelFromFile("config.json")
 	if err != nil {
@@ -58,13 +64,25 @@ func gui() {
 	mainWindow.ShowAndRun()
 }
 
+func newActionButton(label string, icon fyne.Resource, tapped func(action *ActionData), action *ActionData) *ActionButton {
+	ab := &ActionButton{action: action}
+	ab.ExtendBaseWidget(ab)
+	ab.SetIcon(icon)
+	ab.tapped = tapped
+	ab.OnTapped = func() {
+		ab.tapped(ab.action)
+	}
+	ab.SetText(label)
+	return ab
+}
+
 func centerPanel() *fyne.Container {
 	vp := container.NewVBox()
 	for _, l := range model.actionList {
 		hp := container.NewHBox()
-		btn := widget.NewButtonWithIcon(l.action, theme.SettingsIcon(), func() {
-			execMultipleAction(l.action)
-		})
+		btn := newActionButton(l.action, theme.SettingsIcon(), func(action *ActionData) {
+			execMultipleAction(action)
+		}, l)
 		hp.Add(btn)
 		hp.Add(widget.NewLabel(l.desc))
 		vp.Add(hp)
@@ -88,22 +106,19 @@ func action(exec, data1, data2 string) {
 	}
 }
 
-func execMultipleAction(key string) {
-	data, ok := model.actionList[key]
-	if ok {
-		stdOut := NewMyWriter(STD_OUT)
-		stdErr := NewMyWriter(STD_ERR)
-		go func() {
-			for _, act := range data.commands {
-				execSingleAction(act, stdOut, stdErr)
-				if act.err != nil {
-					stdErr.WriteStr(act.err.Error())
-					stdErr.WriteStr("\n")
-					return
-				}
+func execMultipleAction(data *ActionData) {
+	stdOut := NewMyWriter(STD_OUT)
+	stdErr := NewMyWriter(STD_ERR)
+	go func() {
+		for _, act := range data.commands {
+			execSingleAction(act, stdOut, stdErr)
+			if act.err != nil {
+				stdErr.WriteStr(act.err.Error())
+				stdErr.WriteStr("\n")
+				return
 			}
-		}()
-	}
+		}
+	}()
 }
 
 func execSingleAction(sa *SingleAction, stdOut, stdErr *myWriter) {
@@ -111,7 +126,18 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *myWriter) {
 	if sa.sysin != "" {
 		cmd.Stdin = NewStringReader(STD_IN, sa.sysin)
 	}
-	cmd.Stdout = stdOut
+	if sa.sysoutFile == "" {
+		cmd.Stdout = stdOut
+	} else {
+		fw, err := NewMyFileWriter(sa.sysoutFile)
+		if err != nil {
+			stdErr.WriteStr("Failed to write file %s. %s", sa.sysoutFile, err.Error())
+			cmd.Stdout = stdOut
+		} else {
+			defer fw.Close()
+			cmd.Stdout = fw
+		}
+	}
 	cmd.Stderr = stdErr
 	sa.err = nil
 	sa.err = cmd.Start()

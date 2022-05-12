@@ -25,11 +25,12 @@ type ActionData struct {
 }
 
 type SingleAction struct {
-	command string
-	args    []string
-	sysin   string
-	err     error
-	delay   float64
+	command    string
+	args       []string
+	sysin      string
+	sysoutFile string
+	err        error
+	delay      float64
 }
 
 func NewModelFromFile(fileName string) (*Model, error) {
@@ -90,15 +91,20 @@ func (m *Model) loadActions() error {
 			if err != nil {
 				return err
 			}
-			in, err := getStringNode(cmdNode.(parser.NodeC), "in", msg)
+			in, err := getStringOptNode(cmdNode.(parser.NodeC), "in", "", msg)
 			if err != nil {
 				return err
 			}
+			sysoutFile, err := getStringOptNode(cmdNode.(parser.NodeC), "outFile", "", msg)
+			if err != nil {
+				return err
+			}
+
 			delay, err := getNumberNode(cmdNode.(parser.NodeC), "delay", msg, 0.0)
 			if err != nil {
 				return err
 			}
-			actionData.AddSingleAction(cmd, data, in, delay)
+			actionData.AddSingleAction(cmd, data, in, sysoutFile, delay)
 		}
 		if actionData.len() == 0 {
 			return fmt.Errorf("no commands found for action '%s' with description '%s'", actionData.action, actionData.desc)
@@ -118,6 +124,17 @@ func getStringNode(node parser.NodeC, name, msg string) (string, error) {
 	a := node.GetNodeWithName(name)
 	if a == nil || a.GetNodeType() != parser.NT_STRING {
 		return "", fmt.Errorf("action node '%s' does not contain the 'String' node '%s'", msg, name)
+	}
+	return a.String(), nil
+}
+
+func getStringOptNode(node parser.NodeC, name, def, msg string) (string, error) {
+	a := node.GetNodeWithName(name)
+	if a == nil {
+		return def, nil
+	}
+	if a.GetNodeType() != parser.NT_STRING {
+		return "", fmt.Errorf("action node '%s' does not contain the optional 'String' node '%s'", msg, name)
 	}
 	return a.String(), nil
 }
@@ -157,15 +174,19 @@ func NewActionData(action string, desc string) *ActionData {
 	return &ActionData{action: action, desc: desc, commands: make([]*SingleAction, 0)}
 }
 
-func NewSingleAction(cmd string, args []string, input string, delay float64) *SingleAction {
-	return &SingleAction{command: cmd, args: args, sysin: input, delay: delay}
+func NewSingleAction(cmd string, args []string, input, outFile string, delay float64) *SingleAction {
+	return &SingleAction{command: cmd, args: args, sysin: input, sysoutFile: outFile, delay: delay}
 }
 
-func (p *ActionData) AddSingleAction(cmd string, data []string, input string, delay float64) {
-	sa := NewSingleAction(cmd, data, input, delay)
+func (p *ActionData) AddSingleAction(cmd string, data []string, input, outFile string, delay float64) {
+	sa := NewSingleAction(cmd, data, input, outFile, delay)
 	p.commands = append(p.commands, sa)
 }
 
 func (p *ActionData) len() int {
 	return len(p.commands)
+}
+
+func (p *ActionData) Key() string {
+	return p.Key()
 }

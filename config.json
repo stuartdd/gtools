@@ -9,15 +9,13 @@
                     "data": [
                         "-lta"
                     ],
-                    "in": "",
                     "delay": 1000
                 },
                 {
                     "cmd": "echo",
                     "data": [
                         "DONE"
-                    ],
-                    "in": ""
+                    ]
                 }
             ]
         },
@@ -30,7 +28,8 @@
                     "data": [
                         "config", "-l"
                     ],
-                    "in": ""
+                    "in": "",
+                    "outFile":""
                 }
             ]
         },
@@ -40,8 +39,7 @@
             "list": [
                 {
                     "cmd": "gitpushsdd.sh",
-                    "data": [],
-                    "in": ""
+                    "data": []
                 }
             ]
         }
