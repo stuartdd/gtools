@@ -129,14 +129,9 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *myWriter) {
 	if sa.sysoutFile == "" {
 		cmd.Stdout = stdOut
 	} else {
-		fw, err := NewMyFileWriter(sa.sysoutFile)
-		if err != nil {
-			stdErr.WriteStr("Failed to write file %s. %s", sa.sysoutFile, err.Error())
-			cmd.Stdout = stdOut
-		} else {
-			defer fw.Close()
-			cmd.Stdout = fw
-		}
+		fw := NewMyFileWriter(sa.sysoutFile, stdOut, stdErr)
+		defer fw.Close()
+		cmd.Stdout = fw
 	}
 	cmd.Stderr = stdErr
 	sa.err = nil

@@ -99,7 +99,6 @@ func (m *Model) loadActions() error {
 			if err != nil {
 				return err
 			}
-
 			delay, err := getNumberNode(cmdNode.(parser.NodeC), "delay", msg, 0.0)
 			if err != nil {
 				return err

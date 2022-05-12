@@ -29,7 +29,7 @@
                         "config", "-l"
                     ],
                     "in": "",
-                    "outFile":""
+                    "outFile":"conf.txt"
                 }
             ]
         },

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -19,28 +20,49 @@ type FileWriter struct {
 	fileName string
 	file     *os.File
 	canWrite bool
+	stdErr   *myWriter
+	stdOut   *myWriter
 }
 
 type myWriter struct {
 	id int
 }
 
-func NewMyFileWriter(fileName string) (*FileWriter, error) {
-	f, err := os.Create("/tmp/dat2")
-	if err != nil {
-		return nil, err
+func NewMyFileWriter(fileName string, stdOut, stdErr *myWriter) *FileWriter {
+	var f *os.File
+	var err error
+	var fn string
+	if strings.ToLower(fileName)[0:7] == "append:" {
+		fn = fileName[7:]
+		f, err = os.OpenFile(fn, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	} else {
+		fn = fileName
+		f, err = os.Create(fn)
 	}
-	return &FileWriter{fileName: fileName, file: f, canWrite: true}, nil
+	if err != nil {
+		stdErr.WriteStr(fmt.Sprintf("Failed to create output file %s. %s", fn, err.Error()))
+		return &FileWriter{fileName: fn, file: nil, canWrite: false, stdOut: stdOut, stdErr: stdErr}
+	}
+	return &FileWriter{fileName: fn, file: f, canWrite: true, stdOut: stdOut, stdErr: stdErr}
 }
 
 func (mw *FileWriter) Close() {
 	mw.canWrite = false
-	mw.file.Close()
+	if mw.file != nil {
+		mw.file.Close()
+	}
 }
 
 func (mw *FileWriter) Write(p []byte) (n int, err error) {
-	mw.file.Write(p)
-	return len(p), nil
+	if mw.canWrite {
+		n, err = mw.file.Write(p)
+		if err != nil {
+			mw.stdErr.WriteStr(fmt.Sprintf("Write Error. File:%s. Err:%s\n", mw.fileName, err.Error()))
+			return mw.stdOut.Write(p)
+		}
+		return n, nil
+	}
+	return mw.stdOut.Write(p)
 }
 
 func NewStringReader(id int, s string) *StringReader {
