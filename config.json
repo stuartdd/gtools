@@ -26,10 +26,11 @@
                 {
                     "cmd": "git",
                     "data": [
-                        "config", "-l"
+                        "config",
+                        "-l"
                     ],
                     "in": "",
-                    "outFile":"conf.txt"
+                    "outFile": "conf.txt"
                 }
             ]
         },
@@ -42,7 +43,19 @@
                     "data": []
                 }
             ]
+        },
+        "GetDb": {
+            "name": "Get",
+            "desc": "Database file",
+            "list": [
+                {
+                    "cmd": "wget",
+                    "data": [
+                        "--output-document=db.data",
+                        "http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/mydb.data"
+                    ]
+                }
+            ]
         }
     }
-
 }
