@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"time"
@@ -17,15 +18,10 @@ const (
 	RESET = "\033[0m"
 	GREEN = "\033[;32m"
 	RED   = "\033[;31m"
-
-	STD_OUT = 0
-	STD_ERR = 1
-	STD_IN  = 2
 )
 
 var (
 	mainWindow fyne.Window
-	prefix     = []string{GREEN, RED}
 	model      *Model
 )
 
@@ -80,7 +76,7 @@ func centerPanel() *fyne.Container {
 	vp := container.NewVBox()
 	for _, l := range model.actionList {
 		hp := container.NewHBox()
-		btn := newActionButton(l.action, theme.SettingsIcon(), func(action *ActionData) {
+		btn := newActionButton(l.name, theme.SettingsIcon(), func(action *ActionData) {
 			execMultipleAction(action)
 		}, l)
 		hp.Add(btn)
@@ -113,27 +109,38 @@ func execMultipleAction(data *ActionData) {
 		for _, act := range data.commands {
 			execSingleAction(act, stdOut, stdErr)
 			if act.err != nil {
-				stdErr.WriteStr(act.err.Error())
-				stdErr.WriteStr("\n")
+				stdErr.Write([]byte(act.err.Error()))
+				stdErr.Write([]byte("\n"))
 				return
 			}
 		}
 	}()
 }
 
-func execSingleAction(sa *SingleAction, stdOut, stdErr *myWriter) {
+func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) {
 	cmd := exec.Command(sa.command, sa.args...)
 	if sa.sysin != "" {
-		cmd.Stdin = NewStringReader(STD_IN, sa.sysin)
+		si := NewStringReader(sa.sysin, cmd.Stdin)
+		siCloser, ok := si.(io.ReadCloser)
+		if ok {
+			defer siCloser.Close()
+		}
+		cmd.Stdin = si
 	}
-	if sa.sysoutFile == "" {
-		cmd.Stdout = stdOut
-	} else {
-		fw := NewMyFileWriter(sa.sysoutFile, stdOut, stdErr)
-		defer fw.Close()
-		cmd.Stdout = fw
+	so := NewWriter(sa.sysoutFile, stdOut, stdErr)
+	soCloser, soOk := so.(io.Closer)
+	if soOk {
+		defer soCloser.Close()
 	}
-	cmd.Stderr = stdErr
+	cmd.Stdout = so
+
+	se := NewWriter(sa.syserrFile, stdErr, stdErr)
+	seCloser, seOk := se.(io.Closer)
+	if seOk {
+		defer seCloser.Close()
+	}
+	cmd.Stderr = se
+
 	sa.err = nil
 	sa.err = cmd.Start()
 	if sa.err != nil {
@@ -152,10 +159,10 @@ func actionClose(data string, code int) {
 
 func exitApp(data string, code int) {
 	if code != 0 {
-		fmt.Printf("%sEXIT CODE[%d]:%s%s", prefix[STD_ERR], code, data, RESET)
+		fmt.Printf("%sEXIT CODE[%d]:%s%s", stdColourPrefix[STD_ERR], code, data, RESET)
 	} else {
 		if data != "" {
-			fmt.Printf("%s%s%s", prefix[STD_OUT], data, RESET)
+			fmt.Printf("%s%s%s", stdColourPrefix[STD_OUT], data, RESET)
 		}
 	}
 	os.Exit(code)

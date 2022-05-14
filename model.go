@@ -15,11 +15,11 @@ var (
 type Model struct {
 	fileName   string
 	root       parser.NodeC
-	actionList map[string]*ActionData
+	actionList []*ActionData
 }
 
 type ActionData struct {
-	action   string
+	name     string
 	desc     string
 	commands []*SingleAction
 }
@@ -29,6 +29,7 @@ type SingleAction struct {
 	args       []string
 	sysin      string
 	sysoutFile string
+	syserrFile string
 	err        error
 	delay      float64
 }
@@ -45,7 +46,7 @@ func NewModelFromFile(fileName string) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Model{fileName: fileName, root: configData, actionList: make(map[string]*ActionData)}, nil
+	return &Model{fileName: fileName, root: configData, actionList: make([]*ActionData, 0)}, nil
 }
 
 func (m *Model) loadActions() error {
@@ -56,38 +57,54 @@ func (m *Model) loadActions() error {
 	if !actionListNode.IsContainer() {
 		return fmt.Errorf("node at '%s' is not a container node", actionsPrefName)
 	}
-	for _, actionNode := range actionListNode.(parser.NodeC).GetValues() {
+	var actionList []parser.NodeI
+
+	if actionListNode.GetNodeType() == parser.NT_LIST {
+		actionList = actionListNode.(*parser.JsonList).GetValues()
+	} else {
+		keys := actionListNode.(*parser.JsonObject).GetSortedKeys()
+		actionList = make([]parser.NodeI, 0)
+		for _, n := range keys {
+			actionList = append(actionList, actionListNode.(*parser.JsonObject).GetNodeWithName(n))
+		}
+	}
+
+	for ind, actionNode := range actionList {
+		var msg string
+		if actionNode.GetName() == "" {
+			msg = fmt.Sprintf("%s[%d]", actionsPrefName, ind)
+		} else {
+			msg = fmt.Sprintf("%s{%s}", actionsPrefName, actionNode.GetName())
+		}
 		if !actionNode.IsContainer() {
-			return fmt.Errorf("node at '%s.%s' is not a container node", actionsPrefName, actionNode.GetName())
+			return fmt.Errorf("%s is not a container node", msg)
 		}
-		actionName := actionNode.GetName()
-		actionData, ok := m.actionList[actionName]
-		if !ok {
-			name, err := getStringNode(actionNode.(parser.NodeC), "name", actionNode.GetName())
-			if err != nil {
-				return err
-			}
-			desc, err := getStringNode(actionNode.(parser.NodeC), "desc", actionNode.GetName())
-			if err != nil {
-				return err
-			}
-			actionData = NewActionData(name, desc)
-			m.actionList[actionName] = actionData
-		}
-		cmdList, err := getListNode(actionNode.(parser.NodeC), "list")
+		name, err := getStringNode(actionNode.(parser.NodeC), "name", msg)
 		if err != nil {
 			return err
 		}
+		desc, err := getStringNode(actionNode.(parser.NodeC), "desc", msg)
+		if err != nil {
+			return err
+		}
+
+		actionData := m.getActionData(name, desc)
+		cmdList, err := getListNode(actionNode.(parser.NodeC), "list")
+		if err != nil {
+			return fmt.Errorf("node at %s does not have a list[] node", msg)
+		}
+
 		for i, cmdNode := range cmdList.GetValues() {
-			msg := fmt.Sprintf("%s -> %s[%d]", actionName, cmdList.GetName(), i)
+			msg = fmt.Sprintf("%s -> %s[%d]", msg, "list", i)
 			if cmdNode.GetNodeType() != parser.NT_OBJECT {
-				return fmt.Errorf("node at %s is not an object node", msg)
+				return fmt.Errorf("node at %s is not an object node or has only one sub node", msg)
 			}
 			cmd, err := getStringNode(cmdNode.(parser.NodeC), "cmd", msg)
 			if err != nil {
 				return err
 			}
-			data, err := getStringList(cmdNode.(parser.NodeC), "data", msg)
+			msg = fmt.Sprintf("%s -> cmd[%s]", msg, cmd)
+			data, err := getStringList(cmdNode.(parser.NodeC), "args", msg)
 			if err != nil {
 				return err
 			}
@@ -99,14 +116,18 @@ func (m *Model) loadActions() error {
 			if err != nil {
 				return err
 			}
-			delay, err := getNumberNode(cmdNode.(parser.NodeC), "delay", msg, 0.0)
+			syserrFile, err := getStringOptNode(cmdNode.(parser.NodeC), "errFile", "", msg)
 			if err != nil {
 				return err
 			}
-			actionData.AddSingleAction(cmd, data, in, sysoutFile, delay)
+			delay, err := getNumberOptNode(cmdNode.(parser.NodeC), "delay", msg, 0.0)
+			if err != nil {
+				return err
+			}
+			actionData.AddSingleAction(cmd, data, in, sysoutFile, syserrFile, delay)
 		}
 		if actionData.len() == 0 {
-			return fmt.Errorf("no commands found for action '%s' with description '%s'", actionData.action, actionData.desc)
+			return fmt.Errorf("no commands found in 'list' for action '%s' with name '%s'", msg, actionData.name)
 		}
 	}
 	if m.len() == 0 {
@@ -119,10 +140,24 @@ func (m *Model) len() int {
 	return len(m.actionList)
 }
 
+func (p *Model) getActionData(name, desc string) *ActionData {
+	for _, a1 := range p.actionList {
+		if a1.name == name && a1.desc == desc {
+			return a1
+		}
+	}
+	n := NewActionData(name, desc)
+	p.actionList = append(p.actionList, n)
+	return n
+}
+
 func getStringNode(node parser.NodeC, name, msg string) (string, error) {
 	a := node.GetNodeWithName(name)
 	if a == nil || a.GetNodeType() != parser.NT_STRING {
 		return "", fmt.Errorf("action node '%s' does not contain the 'String' node '%s'", msg, name)
+	}
+	if a.String() == "" {
+		return "", fmt.Errorf("action node at %s.%s is an empty string", msg, name)
 	}
 	return a.String(), nil
 }
@@ -138,13 +173,13 @@ func getStringOptNode(node parser.NodeC, name, def, msg string) (string, error) 
 	return a.String(), nil
 }
 
-func getNumberNode(node parser.NodeC, name, msg string, def float64) (float64, error) {
+func getNumberOptNode(node parser.NodeC, name, msg string, def float64) (float64, error) {
 	a := node.GetNodeWithName(name)
 	if a == nil {
 		return def, nil
 	}
 	if a.GetNodeType() != parser.NT_NUMBER {
-		return 0, fmt.Errorf("action node '%s' does not contain a 'Number' node '%s'", msg, name)
+		return 0, fmt.Errorf("action node '%s' does not contain the optional 'Number' node '%s'", msg, name)
 	}
 	return a.(*parser.JsonNumber).GetValue(), nil
 }
@@ -152,7 +187,7 @@ func getNumberNode(node parser.NodeC, name, msg string, def float64) (float64, e
 func getListNode(node parser.NodeC, name string) (parser.NodeC, error) {
 	a := node.GetNodeWithName(name)
 	if a == nil || !a.IsContainer() {
-		return nil, fmt.Errorf("action node '%s' does not contain the 'List' node '%s'", node.GetName(), name)
+		return nil, fmt.Errorf("action node '%s' does not contain the 'List[]' node '%s'", node.GetName(), name)
 	}
 	return a.(parser.NodeC), nil
 }
@@ -160,7 +195,7 @@ func getListNode(node parser.NodeC, name string) (parser.NodeC, error) {
 func getStringList(node parser.NodeC, name, msg string) ([]string, error) {
 	a := node.GetNodeWithName(name)
 	if a == nil || a.GetNodeType() != parser.NT_LIST {
-		return nil, fmt.Errorf("action node '%s' does not contain the 'String List' node '%s'", msg, name)
+		return nil, fmt.Errorf("action node '%s' does not contain the 'String list[]' node '%s'", msg, name)
 	}
 	resp := make([]string, 0)
 	for _, n := range a.(*parser.JsonList).GetValues() {
@@ -169,23 +204,19 @@ func getStringList(node parser.NodeC, name, msg string) ([]string, error) {
 	return resp, nil
 }
 
-func NewActionData(action string, desc string) *ActionData {
-	return &ActionData{action: action, desc: desc, commands: make([]*SingleAction, 0)}
+func NewActionData(name string, desc string) *ActionData {
+	return &ActionData{name: name, desc: desc, commands: make([]*SingleAction, 0)}
 }
 
-func NewSingleAction(cmd string, args []string, input, outFile string, delay float64) *SingleAction {
-	return &SingleAction{command: cmd, args: args, sysin: input, sysoutFile: outFile, delay: delay}
+func NewSingleAction(cmd string, args []string, input, outFile, errFile string, delay float64) *SingleAction {
+	return &SingleAction{command: cmd, args: args, sysin: input, sysoutFile: outFile, syserrFile: errFile, delay: delay}
 }
 
-func (p *ActionData) AddSingleAction(cmd string, data []string, input, outFile string, delay float64) {
-	sa := NewSingleAction(cmd, data, input, outFile, delay)
+func (p *ActionData) AddSingleAction(cmd string, data []string, input, outFile, errFile string, delay float64) {
+	sa := NewSingleAction(cmd, data, input, outFile, errFile, delay)
 	p.commands = append(p.commands, sa)
 }
 
 func (p *ActionData) len() int {
 	return len(p.commands)
-}
-
-func (p *ActionData) Key() string {
-	return p.Key()
 }

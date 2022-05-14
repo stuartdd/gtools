@@ -1,61 +1,75 @@
 {
-    "actions": {
-        "listDir": {
+    "actions": [
+        {
             "name": "List",
             "desc": "List directory",
             "list": [
                 {
                     "cmd": "ls",
-                    "data": [
+                    "args": [
                         "-lta"
                     ],
+                    "outFile": "memory:listDir",
                     "delay": 1000
                 },
                 {
                     "cmd": "echo",
-                    "data": [
+                    "args": [
                         "DONE"
                     ]
                 }
             ]
         },
-        "gitConfig": {
+        {
+            "name": "Test Stdin",
+            "desc": "Test",
+            "list": [
+                {
+                    "cmd": "cat",
+                    "args": [],
+                    "in": "part1part2"
+                }
+            ]
+        },
+        {
+            "name": "Get List",
+            "desc": "Result from list dir",
+            "list": [
+                {
+                    "cmd": "cat",
+                    "args": [],
+                    "in": "memory:listDir"
+                }
+            ]
+        },
+        {
             "name": "Git Config",
             "desc": "Push to git",
             "list": [
                 {
                     "cmd": "git",
-                    "data": [
+                    "args": [
                         "config",
-                        "-l"
+                        "-l" 
                     ],
                     "in": "",
-                    "outFile": "conf.txt"
+                    "outFile": "confOut.txt",
+                    "errFile": "confErr.txt"
                 }
             ]
         },
-        "gitPush": {
-            "name": "Git Push",
-            "desc": "Push to git",
-            "list": [
-                {
-                    "cmd": "gitpushsdd.sh",
-                    "data": []
-                }
-            ]
-        },
-        "GetDb": {
+        {
             "name": "Get",
             "desc": "Database file",
             "list": [
                 {
                     "cmd": "wget",
-                    "data": [
+                    "args": [
                         "--output-document=db.data",
                         "http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/mydb.data"
                     ]
                 }
             ]
         }
-    }
+    ]
 }
