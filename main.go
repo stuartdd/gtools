@@ -32,12 +32,8 @@ type ActionButton struct {
 }
 
 func main() {
-	m, err := NewModelFromFile("config.json")
-	if err != nil {
-		exitApp(err.Error(), 1)
-	}
-	model = m
-	err = model.loadActions()
+	var err error
+	model, err = NewModelFromFile("config.json")
 	if err != nil {
 		exitApp(err.Error(), 1)
 	}
@@ -50,14 +46,19 @@ func gui() {
 	mainWindow.SetCloseIntercept(func() {
 		actionClose("", 0)
 	})
+	update()
+	mainWindow.SetMaster()
+	mainWindow.SetTitle("Data file:" + model.fileName)
+	mainWindow.Resize(fyne.NewSize(300, 100))
+	mainWindow.SetFixedSize(true)
+	mainWindow.ShowAndRun()
+}
+
+func update() {
 	bb := buttonBar(action)
 	cp := centerPanel()
 	c := container.NewBorder(bb, nil, nil, nil, cp)
 	mainWindow.SetContent(c)
-	mainWindow.SetMaster()
-	mainWindow.Resize(fyne.NewSize(300, 100))
-	mainWindow.SetFixedSize(true)
-	mainWindow.ShowAndRun()
 }
 
 func newActionButton(label string, icon fyne.Resource, tapped func(action *ActionData), action *ActionData) *ActionButton {
@@ -74,6 +75,7 @@ func newActionButton(label string, icon fyne.Resource, tapped func(action *Actio
 
 func centerPanel() *fyne.Container {
 	vp := container.NewVBox()
+	vp.Add(widget.NewSeparator())
 	for _, l := range model.actionList {
 		hp := container.NewHBox()
 		btn := newActionButton(l.name, theme.SettingsIcon(), func(action *ActionData) {
@@ -91,7 +93,15 @@ func buttonBar(exec func(string, string, string)) *fyne.Container {
 	bb.Add(widget.NewButtonWithIcon("Close", theme.LogoutIcon(), func() {
 		exec("exit", "", "")
 	}))
-	bb.Add(widget.NewLabel(fmt.Sprintf("Config data file '%s'", model.fileName)))
+	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
+		m, err := NewModelFromFile(model.fileName)
+		if err != nil {
+			fmt.Printf("Failed to reload")
+		} else {
+			model = m
+			go update()
+		}
+	}))
 	return bb
 }
 
@@ -120,21 +130,29 @@ func execMultipleAction(data *ActionData) {
 func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) {
 	cmd := exec.Command(sa.command, sa.args...)
 	if sa.sysin != "" {
-		si := NewStringReader(sa.sysin, cmd.Stdin)
+		si := NewStringReader(sa.sysin, cmd.Stdin, stdErr)
 		siCloser, ok := si.(io.ReadCloser)
 		if ok {
 			defer siCloser.Close()
 		}
 		cmd.Stdin = si
 	}
-	so := NewWriter(sa.sysoutFile, stdOut, stdErr)
+	so := NewWriter(sa.sysoutFile, sa.outFilter, stdOut, stdErr)
+	soReset, reSoOk := so.(Reset)
+	if reSoOk {
+		soReset.Reset()
+	}
 	soCloser, soOk := so.(io.Closer)
 	if soOk {
 		defer soCloser.Close()
 	}
 	cmd.Stdout = so
 
-	se := NewWriter(sa.syserrFile, stdErr, stdErr)
+	se := NewWriter(sa.syserrFile, sa.outFilter, stdErr, stdErr)
+	seReset, reSeOk := se.(Reset)
+	if reSeOk {
+		seReset.Reset()
+	}
 	seCloser, seOk := se.(io.Closer)
 	if seOk {
 		defer seCloser.Close()

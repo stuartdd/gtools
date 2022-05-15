@@ -9,42 +9,32 @@
                     "args": [
                         "-lta"
                     ],
-                    "outFile": "memory:listDir",
+                    "outFilter": "gtool",
+                    "outFile" : "memory:listDir",
                     "delay": 1000
                 },
                 {
                     "cmd": "echo",
                     "args": [
-                        "DONE"
+                        "DONE Playing arround"
                     ]
                 }
             ]
         },
         {
-            "name": "Test Stdin",
-            "desc": "Test",
-            "list": [
-                {
-                    "cmd": "cat",
-                    "args": [],
-                    "in": "part1part2"
-                }
-            ]
-        },
-        {
-            "name": "Get List",
+            "name": "Get Back",
             "desc": "Result from list dir",
             "list": [
                 {
                     "cmd": "cat",
                     "args": [],
-                    "in": "memory:listDir"
+                    "in": "file:confOut.txt|stu,=,1,,b\n"
                 }
             ]
         },
         {
-            "name": "Git Config",
-            "desc": "Push to git",
+            "name": "Git Config to file",
+            "desc": "To file",
             "list": [
                 {
                     "cmd": "git",

@@ -6,7 +6,7 @@ import (
 )
 
 func TestReader(t *testing.T) {
-	mr := NewStringReader("0123456", nil)
+	mr := NewStringReader("0123456", nil, nil)
 	b := make([]byte, 3)
 	c, e := mr.Read(b)
 	if e != nil || string(b[0:c]) != "012" || c != 3 {
@@ -27,7 +27,7 @@ func TestReader(t *testing.T) {
 }
 
 func TestLineReader(t *testing.T) {
-	mr := NewStringReader("012\n34\n56", nil)
+	mr := NewStringReader("012\n34\n56", nil, nil)
 	b := make([]byte, 10)
 	c, e := mr.Read(b)
 	s := string(b[0:c])

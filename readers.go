@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,6 +17,7 @@ const (
 
 	FILE_APPEND_PREF = "append:"
 	CACHE_PREF       = "memory:"
+	FILE_PREF        = "file:"
 )
 
 var (
@@ -22,23 +25,30 @@ var (
 	outCache        = make(map[string]*CacheWriter)
 )
 
+type Reset interface {
+	Reset()
+}
+
 type StringReader struct {
 	pos     int
-	resp    []byte
+	resp    string
 	delay   bool
 	delayMs int64
 }
 
 type FileWriter struct {
 	fileName string
+	filter   string
 	file     *os.File
 	canWrite bool
 	stdErr   *MyWriter
 	stdOut   *MyWriter
 }
+
 type CacheWriter struct {
-	name string
-	sb   strings.Builder
+	name   string
+	filter string
+	sb     strings.Builder
 }
 
 type MyWriter struct {
@@ -49,34 +59,47 @@ func NewMyWriter(id int) *MyWriter {
 	return &MyWriter{id: id}
 }
 
-func NewCacheWriter(name string) (*CacheWriter, error) {
-	if name == "" {
-		return nil, fmt.Errorf("memory writer must have a name")
-	}
-	return &CacheWriter{name: name}, nil
-}
-
-func (mw *CacheWriter) Write(p []byte) (n int, err error) {
-	mw.sb.Write(p)
-	return len(p), nil
-}
-
 func (mw *MyWriter) Write(p []byte) (n int, err error) {
 	fmt.Printf("%s%s%s", stdColourPrefix[mw.id], string(p), RESET)
 	return len(p), nil
 }
 
-func NewWriter(fileName string, defaultOut, stdErr *MyWriter) io.Writer {
+func NewCacheWriter(name, filter string) (*CacheWriter, error) {
+	if name == "" {
+		return nil, fmt.Errorf("memory writer must have a name")
+	}
+	cw := &CacheWriter{name: name, filter: filter}
+	cw.sb.Reset()
+	return cw, nil
+}
+
+func (cw *CacheWriter) Write(p []byte) (n int, err error) {
+	pLen := len(p)
+	if cw.filter != "" {
+		p = filter(p, cw.filter)
+	}
+	np, errp := cw.sb.Write(p)
+	if errp != nil {
+		return np, err
+	}
+	return pLen, nil
+}
+
+func (cw *CacheWriter) Reset() {
+	cw.sb.Reset()
+}
+
+func NewWriter(fileName, filter string, defaultOut, stdErr *MyWriter) io.Writer {
 	if fileName == "" {
 		return defaultOut
 	}
 	var err error
 	var fn string
-	if strings.ToLower(fileName)[0:7] == CACHE_PREF {
+	if strings.ToLower(fileName)[0:len(CACHE_PREF)] == CACHE_PREF {
 		fn = fileName[len(CACHE_PREF):]
 		cw, found := outCache[fn]
 		if !found {
-			cw, err = NewCacheWriter(fn)
+			cw, err = NewCacheWriter(fn, filter)
 			if err != nil {
 				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CACHE_PREF, fn, err.Error())))
 				return defaultOut
@@ -87,7 +110,7 @@ func NewWriter(fileName string, defaultOut, stdErr *MyWriter) io.Writer {
 	}
 
 	var f *os.File
-	if strings.ToLower(fileName)[0:7] == FILE_APPEND_PREF {
+	if strings.ToLower(fileName)[0:len(FILE_APPEND_PREF)] == FILE_APPEND_PREF {
 		fn = fileName[len(FILE_APPEND_PREF):]
 		f, err = os.OpenFile(fn, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	} else {
@@ -98,59 +121,72 @@ func NewWriter(fileName string, defaultOut, stdErr *MyWriter) io.Writer {
 		stdErr.Write([]byte(fmt.Sprintf("Failed to create file writer %s. %s", fn, err.Error())))
 		return defaultOut
 	}
-	return &FileWriter{fileName: fn, file: f, canWrite: true, stdOut: defaultOut, stdErr: stdErr}
+	return &FileWriter{fileName: fn, file: f, filter: filter, canWrite: true, stdOut: defaultOut, stdErr: stdErr}
 }
 
-func (mw *FileWriter) Close() error {
-	mw.canWrite = false
-	if mw.file != nil {
-		return mw.file.Close()
+func (fw *FileWriter) Close() error {
+	fw.canWrite = false
+	if fw.file != nil {
+		return fw.file.Close()
 	}
 	return nil
 }
 
-func (mw *FileWriter) Write(p []byte) (n int, err error) {
-	if mw.canWrite {
-		n, err = mw.file.Write(p)
+func (fw *FileWriter) Write(p []byte) (n int, err error) {
+	if fw.canWrite {
+		pLen := len(p)
+		if fw.filter != "" {
+			p = filter(p, fw.filter)
+		}
+		_, err = fw.file.Write(p)
 		if err != nil {
-			mw.stdErr.Write([]byte(fmt.Sprintf("Write Error. File:%s. Err:%s\n", mw.fileName, err.Error())))
+			fw.stdErr.Write([]byte(fmt.Sprintf("Write Error. File:%s. Err:%s\n", fw.fileName, err.Error())))
 		} else {
-			return n, nil
+			return pLen, nil
 		}
 	}
-	return mw.stdOut.Write(p)
+	return fw.stdOut.Write(p)
 }
 
-func NewStringReader(s string, defaultIn io.Reader) io.Reader {
-	if s == "" {
+func NewStringReader(selectFrom string, defaultIn io.Reader, stdErr *MyWriter) io.Reader {
+	if selectFrom == "" {
 		return defaultIn
 	}
-	if strings.ToLower(s)[0:7] == CACHE_PREF {
-		fn := s[len(CACHE_PREF):]
-		cw, found := outCache[fn]
+	if strings.ToLower(selectFrom)[0:len(CACHE_PREF)] == CACHE_PREF {
+		fn := selectFrom[len(CACHE_PREF):]
+		parts := strings.Split(fn, "|")
+		cw, found := outCache[parts[0]]
 		if found {
-			return &StringReader{resp: []byte(cw.sb.String()), delayMs: 0}
+			return &StringReader{resp: selectWithArgs(parts[1:], cw.sb.String(), stdErr, fn), delayMs: 0}
 		}
 	}
-	return &StringReader{resp: []byte(s), delayMs: 0}
+	if strings.ToLower(selectFrom)[0:len(FILE_PREF)] == FILE_PREF {
+		fn := selectFrom[len(FILE_PREF):]
+		parts := strings.Split(fn, "|")
+		if len(parts) > 1 {
+			return &StringReader{resp: selectFromFileWithArgs(parts[0], parts[1:], stdErr, selectFrom), delayMs: 0}
+		}
+	}
+
+	return &StringReader{resp: selectFrom, delayMs: 0}
 }
 
-func (mr *StringReader) Read(p []byte) (n int, err error) {
-	if mr.delay {
-		time.Sleep(time.Millisecond * time.Duration(mr.delayMs))
-		mr.delay = false
+func (sr *StringReader) Read(p []byte) (n int, err error) {
+	if sr.delay {
+		time.Sleep(time.Millisecond * time.Duration(sr.delayMs))
+		sr.delay = false
 	}
-	i := len(mr.resp) - mr.pos
+	i := len(sr.resp) - sr.pos
 	if len(p) < i {
 		i = len(p)
 	}
 	j := 0
 	for ; j < i; j++ {
-		p[j] = mr.resp[mr.pos]
-		mr.pos++
+		p[j] = sr.resp[sr.pos]
+		sr.pos++
 		if p[j] == '\n' {
 			j++
-			mr.delay = true
+			sr.delay = true
 			break
 		}
 	}
@@ -158,4 +194,117 @@ func (mr *StringReader) Read(p []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 	return j, nil
+}
+
+type Select struct {
+	line     int
+	contains string
+	delim    string
+	index    int
+	suffix   string
+}
+
+func NewSelect(a string, stdErr *MyWriter, desc string) *Select {
+	var line int = -1
+	var contains string = ""
+	var delim string = ""
+	var ind int = -1
+	var suffix string = ""
+	var err error = nil
+
+	ap := strings.Split(a, ",")
+	if len(ap) > 0 {
+		line, err = strconv.Atoi(ap[0])
+		if err != nil {
+			contains = ap[0]
+			line = -1
+		}
+	}
+	if len(ap) > 1 {
+		delim = ap[1]
+	}
+	if len(ap) > 2 {
+		ind, err = strconv.Atoi(ap[2])
+		if err != nil {
+			stdErr.Write([]byte(fmt.Sprintf("String to int conversion failed for selection '%s' element '%s'\n", desc, ap[0])))
+			ind = -1
+		}
+	}
+	if len(ap) > 3 {
+		suffix = a[len(ap[0])+len(ap[1])+len(ap[2])+3:]
+	}
+	return &Select{line: line, contains: contains, delim: delim, index: ind, suffix: suffix}
+}
+
+func parseSelectArgs(args []string, stdErr *MyWriter, desc string) []*Select {
+	sels := make([]*Select, 0)
+	for _, a := range args {
+		sels = append(sels, NewSelect(a, stdErr, desc))
+	}
+	return sels
+}
+
+func selectFromFileWithArgs(fileName string, args []string, stdErr *MyWriter, desc string) string {
+	dat, err := os.ReadFile(fileName)
+	if err != nil {
+		stdErr.Write([]byte(fmt.Sprintf("Failed to load file '%s' from file input definition '%s'\n", fileName, desc)))
+		return desc
+	}
+	selectList := parseSelectArgs(args, stdErr, desc)
+
+	var sb strings.Builder
+	scanner := bufio.NewScanner(strings.NewReader(string(dat)))
+	line := 0
+	for scanner.Scan() {
+		selectLineWithArgs(selectList, line, scanner.Text(), &sb)
+	}
+	return sb.String()
+}
+
+func selectWithArgs(args []string, in string, stdErr *MyWriter, desc string) string {
+	if len(args) == 0 {
+		return in
+	}
+	selectList := parseSelectArgs(args, stdErr, desc)
+
+	var sb strings.Builder
+	scanner := bufio.NewScanner(strings.NewReader(in))
+	line := 0
+	for scanner.Scan() {
+		selectLineWithArgs(selectList, line, scanner.Text(), &sb)
+	}
+	return sb.String()
+}
+
+func selectLineWithArgs(args []*Select, ln int, line string, sb *strings.Builder) {
+	for _, s := range args {
+		if ln == s.line || (s.line == -1 && s.contains != "" && strings.Contains(line, s.contains)) {
+			if s.index < 0 || s.delim == "" {
+				sb.WriteString(line)
+			} else {
+				ls := strings.Split(line, s.delim)
+				if s.index >= len(ls) {
+					sb.WriteString(line)
+				} else {
+					sb.WriteString(ls[s.index])
+					sb.WriteString(s.suffix)
+				}
+			}
+		}
+	}
+}
+
+func filter(p []byte, filter string) []byte {
+	var sb strings.Builder
+	var out strings.Builder
+	for _, b := range p {
+		sb.WriteByte(b)
+		if b == '\n' {
+			if strings.Contains(sb.String(), filter) {
+				out.WriteString(sb.String())
+			}
+			sb.Reset()
+		}
+	}
+	return []byte(out.String())
 }
