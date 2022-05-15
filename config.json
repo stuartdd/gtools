@@ -1,44 +1,55 @@
 {
     "actions": [
         {
-            "name": "List",
-            "desc": "List directory",
+            "name": "Git status",
+            "desc": "Check local files",
             "list": [
                 {
-                    "cmd": "ls",
-                    "args": [
-                        "-lta"
-                    ],
-                    "outFilter": "gtool",
-                    "outFile" : "memory:listDir",
-                    "delay": 1000
+                    "cmd": "clear",
+                    "args": []
                 },
                 {
-                    "cmd": "echo",
+                    "cmd": "git",
                     "args": [
-                        "DONE Playing arround"
+                        "status"
                     ]
                 }
             ]
         },
         {
-            "name": "Get Back",
-            "desc": "Result from list dir",
+            "name": "Git add",
+            "desc": "Stage local files",
             "list": [
                 {
-                    "cmd": "cat",
-                    "args": [],
-                    "in": "file:confOut.txt|stu,=,1,,b\n"
+                    "cmd": "git",
+                    "args": [
+                        "add",
+                        "."
+                    ]
                 }
             ]
         },
         {
-            "name": "Get",
-            "desc": "db.txt stuartdd",
+            "name": "Git commit",
+            "desc": "Commit local files",
+            "list": [
+                {
+                    "cmd": "git",
+                    "args": [
+                        "commit",
+                        "-m",
+                        "Changes"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Create push",
+            "desc": "Script for stuartdd",
             "list": [
                 {
                     "cmd": "wget",
-                    "outFile":"memory:stuartdd",
+                    "outFile": "memory:stuartdd",
                     "args": [
                         "-q",
                         "--output-document=-",
@@ -47,19 +58,27 @@
                 },
                 {
                     "cmd": "echo",
+                    "outFile": "gitpush.sh",
                     "args": [
-                        "DONE Playing arround [%{stuartdd}] "
+                        "gitpush.sh stuartdd %{stuartdd} &"
+                    ]
+                },
+                {
+                    "cmd": "chmod",
+                    "args": [
+                        "+x",
+                        "gitpush.sh"
                     ]
                 }
             ]
         },
         {
-            "name": "Get",
-            "desc": "db.txt stuartdd2",
+            "name": "Create push",
+            "desc": "Script for stuartdd2",
             "list": [
                 {
                     "cmd": "wget",
-                    "outFile":"memory:stuartdd2",
+                    "outFile": "memory:stuartdd2",
                     "args": [
                         "-q",
                         "--output-document=-",
@@ -68,15 +87,28 @@
                 },
                 {
                     "cmd": "echo",
-                    "outFile":"gitpushsdd2.sh",
+                    "outFile": "gitpush.sh",
                     "args": [
-                        "gitpush.sh stuartdd %{stuartdd2}"
+                        "gitpush.sh stuartdd2 %{stuartdd2} &"
                     ]
                 },
                 {
                     "cmd": "chmod",
                     "args": [
-                        "+x","gitpushsdd2.sh"
+                        "+x",
+                        "gitpush.sh"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Remove push",
+            "desc": "Remove push script gitpush.sh",
+            "list": [
+                {
+                    "cmd": "rm",
+                    "args": [
+                        "gitpush.sh"
                     ]
                 }
             ]
