@@ -123,6 +123,19 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "Create Looper",
+            "desc": "Run gtool exec gitpush.sh, loop",
+            "list": [
+                {
+                    "cmd": "echo",
+                    "outFile": "run.sh",
+                    "args": [
+                        "gtool\n"
+                    ]
+                }
+            ]
         }
     ]
 }

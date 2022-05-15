@@ -89,14 +89,22 @@ func (cw *CacheWriter) Reset() {
 	cw.sb.Reset()
 }
 
+func PrefixMatch(s string, pref string) (string, bool) {
+	if len(s) > len(pref) && strings.ToLower(s)[0:len(pref)] == pref {
+		return s[len(pref):], true
+	}
+	return s, false
+}
+
 func NewWriter(fileName, filter string, defaultOut, stdErr *MyWriter) io.Writer {
 	if fileName == "" {
 		return defaultOut
 	}
 	var err error
 	var fn string
-	if strings.ToLower(fileName)[0:len(CACHE_PREF)] == CACHE_PREF {
-		fn = fileName[len(CACHE_PREF):]
+
+	fn, found := PrefixMatch(fileName, CACHE_PREF)
+	if found {
 		cw, found := outCache[fn]
 		if !found {
 			cw, err = NewCacheWriter(fn, filter)
@@ -110,11 +118,10 @@ func NewWriter(fileName, filter string, defaultOut, stdErr *MyWriter) io.Writer 
 	}
 
 	var f *os.File
-	if strings.ToLower(fileName)[0:len(FILE_APPEND_PREF)] == FILE_APPEND_PREF {
-		fn = fileName[len(FILE_APPEND_PREF):]
+	fn, found = PrefixMatch(fileName, FILE_APPEND_PREF)
+	if found {
 		f, err = os.OpenFile(fn, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	} else {
-		fn = fileName
 		f, err = os.Create(fn)
 	}
 	if err != nil {
@@ -152,16 +159,17 @@ func NewStringReader(selectFrom string, defaultIn io.Reader, stdErr *MyWriter) i
 	if selectFrom == "" {
 		return defaultIn
 	}
-	if strings.ToLower(selectFrom)[0:len(CACHE_PREF)] == CACHE_PREF {
-		fn := selectFrom[len(CACHE_PREF):]
+
+	fn, found := PrefixMatch(selectFrom, CACHE_PREF)
+	if found {
 		parts := strings.Split(fn, "|")
 		cw, found := outCache[parts[0]]
 		if found {
 			return &StringReader{resp: selectWithArgs(parts[1:], cw.sb.String(), stdErr, fn), delayMs: 0}
 		}
 	}
-	if strings.ToLower(selectFrom)[0:len(FILE_PREF)] == FILE_PREF {
-		fn := selectFrom[len(FILE_PREF):]
+	fn, found = PrefixMatch(selectFrom, FILE_PREF)
+	if found {
 		parts := strings.Split(fn, "|")
 		if len(parts) > 1 {
 			return &StringReader{resp: selectFromFileWithArgs(parts[0], parts[1:], stdErr, selectFrom), delayMs: 0}
