@@ -1,6 +1,17 @@
 {
     "actions": [
         {
+            "name": "Start Code",
+            "desc": "Start the dev environment",
+            "list": [
+                {
+                    "cmd": "code",
+                    "args": [
+                        "."
+                    ]
+                }
+            ]
+        },{
             "name": "Git status",
             "desc": "Check local files",
             "list": [
