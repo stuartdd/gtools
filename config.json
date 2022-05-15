@@ -33,30 +33,50 @@
             ]
         },
         {
-            "name": "Git Config to file",
-            "desc": "To file",
+            "name": "Get",
+            "desc": "db.txt stuartdd",
             "list": [
                 {
-                    "cmd": "git",
+                    "cmd": "wget",
+                    "outFile":"memory:stuartdd",
                     "args": [
-                        "config",
-                        "-l" 
-                    ],
-                    "in": "",
-                    "outFile": "confOut.txt",
-                    "errFile": "confErr.txt"
+                        "-q",
+                        "--output-document=-",
+                        "http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/stuartdd"
+                    ]
+                },
+                {
+                    "cmd": "echo",
+                    "args": [
+                        "DONE Playing arround [%{stuartdd}] "
+                    ]
                 }
             ]
         },
         {
             "name": "Get",
-            "desc": "Database file",
+            "desc": "db.txt stuartdd2",
             "list": [
                 {
                     "cmd": "wget",
+                    "outFile":"memory:stuartdd2",
                     "args": [
-                        "--output-document=db.data",
-                        "http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/mydb.data"
+                        "-q",
+                        "--output-document=-",
+                        "http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/stuartdd2"
+                    ]
+                },
+                {
+                    "cmd": "echo",
+                    "outFile":"gitpushsdd2.sh",
+                    "args": [
+                        "gitpush.sh stuartdd %{stuartdd2}"
+                    ]
+                },
+                {
+                    "cmd": "chmod",
+                    "args": [
+                        "+x","gitpushsdd2.sh"
                     ]
                 }
             ]

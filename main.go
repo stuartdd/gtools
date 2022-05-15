@@ -33,7 +33,11 @@ type ActionButton struct {
 
 func main() {
 	var err error
-	model, err = NewModelFromFile("config.json")
+	if len(os.Args) == 1 {
+		model, err = NewModelFromFile("config.json")
+	} else {
+		model, err = NewModelFromFile(os.Args[1])
+	}
 	if err != nil {
 		exitApp(err.Error(), 1)
 	}
@@ -128,7 +132,8 @@ func execMultipleAction(data *ActionData) {
 }
 
 func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) {
-	cmd := exec.Command(sa.command, sa.args...)
+	args := MutateListFromMemCache(sa.args)
+	cmd := exec.Command(sa.command, args...)
 	if sa.sysin != "" {
 		si := NewStringReader(sa.sysin, cmd.Stdin, stdErr)
 		siCloser, ok := si.(io.ReadCloser)
@@ -177,10 +182,10 @@ func actionClose(data string, code int) {
 
 func exitApp(data string, code int) {
 	if code != 0 {
-		fmt.Printf("%sEXIT CODE[%d]:%s%s", stdColourPrefix[STD_ERR], code, data, RESET)
+		fmt.Printf("%sEXIT CODE[%d]:%s%s\n", stdColourPrefix[STD_ERR], code, data, RESET)
 	} else {
 		if data != "" {
-			fmt.Printf("%s%s%s", stdColourPrefix[STD_OUT], data, RESET)
+			fmt.Printf("%s%s%s\n", stdColourPrefix[STD_OUT], data, RESET)
 		}
 	}
 	os.Exit(code)

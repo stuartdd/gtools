@@ -196,6 +196,22 @@ func (sr *StringReader) Read(p []byte) (n int, err error) {
 	return j, nil
 }
 
+func MutateListFromMemCache(in []string) []string {
+	out := make([]string, 0)
+	for _, a := range in {
+		out = append(out, MutateStringFromMemCache(a))
+	}
+	return out
+}
+
+func MutateStringFromMemCache(in string) string {
+	out := in
+	for n, v := range outCache {
+		out = strings.Replace(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(v.sb.String()), -1)
+	}
+	return out
+}
+
 type Select struct {
 	line     int
 	contains string
