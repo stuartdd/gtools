@@ -11,7 +11,8 @@
                     ]
                 }
             ]
-        },{
+        },
+        {
             "name": "Git status",
             "desc": "Check local files",
             "list": [
@@ -132,7 +133,29 @@
                     "cmd": "echo",
                     "outFile": "run.sh",
                     "args": [
-                        "gtool\n"
+                        "#!/bin/bash\n",
+                        "FILE=gitpush.sh\n",
+                        "while true; do\n",
+                        "  if [ -f \"$FILE\" ]; then\n",
+                        "    rm $FILE\n",
+                        "  fi\n",
+                        "  ./gtool\n",
+                        "  if [ $? -eq 1 ]\n",
+                        "  then\n",
+                        "    exit\n",
+                        "  fi\n",
+                        "  if [ -f \"$FILE\" ]; then\n",
+                        "    ./gitpush.sh\n",
+                        "  fi\n",
+                        "  sleep 2\n",
+                        "done\n"
+                    ]
+                },
+                {
+                    "cmd": "chmod",
+                    "args": [
+                        "+x",
+                        "run.sh"
                     ]
                 }
             ]

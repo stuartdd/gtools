@@ -94,8 +94,11 @@ func centerPanel() *fyne.Container {
 
 func buttonBar(exec func(string, string, string)) *fyne.Container {
 	bb := container.NewHBox()
-	bb.Add(widget.NewButtonWithIcon("Close", theme.LogoutIcon(), func() {
+	bb.Add(widget.NewButtonWithIcon("Close(0)", theme.LogoutIcon(), func() {
 		exec("exit", "", "")
+	}))
+	bb.Add(widget.NewButtonWithIcon("Close(1)", theme.LogoutIcon(), func() {
+		exec("exit1", "", "")
 	}))
 	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
 		m, err := NewModelFromFile(model.fileName)
@@ -113,6 +116,8 @@ func action(exec, data1, data2 string) {
 	switch exec {
 	case "exit":
 		actionClose(data1, 0)
+	case "exit1":
+		actionClose(data1, 1)
 	}
 }
 
