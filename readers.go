@@ -22,7 +22,7 @@ const (
 
 var (
 	stdColourPrefix = []string{GREEN, RED}
-	outCache        = make(map[string]*CacheWriter)
+	OutputCache     = make(map[string]*CacheWriter, 10)
 )
 
 type Reset interface {
@@ -48,7 +48,40 @@ type FileWriter struct {
 type CacheWriter struct {
 	name   string
 	filter string
+	desc   string
 	sb     strings.Builder
+}
+
+func InitCache() {
+	OutputCache = make(map[string]*CacheWriter, 10)
+}
+
+func WriteCache(cw *CacheWriter) {
+	OutputCache[cw.name] = cw
+}
+
+func ReadCache(name string) *CacheWriter {
+	c, ok := OutputCache[name]
+	if ok {
+		return c
+	}
+	return nil
+}
+
+func MutateStringFromMemCache(in string) string {
+	out := in
+	for n, v := range OutputCache {
+		out = strings.Replace(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(v.sb.String()), -1)
+	}
+	return out
+}
+
+func MutateListFromMemCache(in []string) []string {
+	out := make([]string, 0)
+	for _, a := range in {
+		out = append(out, MutateStringFromMemCache(a))
+	}
+	return out
 }
 
 type MyWriter struct {
@@ -64,12 +97,22 @@ func (mw *MyWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+func NewCacheWriterValue(name, desc, value string) (*CacheWriter, error) {
+	if name == "" {
+		return nil, fmt.Errorf("memory writer must have a name")
+	}
+	var sb strings.Builder
+	sb.WriteString(value)
+	cw := &CacheWriter{name: name, filter: "", desc: desc, sb: sb}
+	return cw, nil
+}
+
 func NewCacheWriter(name, filter string) (*CacheWriter, error) {
 	if name == "" {
 		return nil, fmt.Errorf("memory writer must have a name")
 	}
-	cw := &CacheWriter{name: name, filter: filter}
-	cw.sb.Reset()
+	var sb strings.Builder
+	cw := &CacheWriter{name: name, filter: filter, desc: "", sb: sb}
 	return cw, nil
 }
 
@@ -105,14 +148,14 @@ func NewWriter(fileName, filter string, defaultOut, stdErr *MyWriter) io.Writer 
 
 	fn, found := PrefixMatch(fileName, CACHE_PREF)
 	if found {
-		cw, found := outCache[fn]
-		if !found {
+		cw := ReadCache(fn)
+		if cw == nil {
 			cw, err = NewCacheWriter(fn, filter)
 			if err != nil {
 				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CACHE_PREF, fn, err.Error())))
 				return defaultOut
 			}
-			outCache[fn] = cw
+			WriteCache(cw)
 		}
 		return cw
 	}
@@ -163,8 +206,8 @@ func NewStringReader(selectFrom string, defaultIn io.Reader, stdErr *MyWriter) i
 	fn, found := PrefixMatch(selectFrom, CACHE_PREF)
 	if found {
 		parts := strings.Split(fn, "|")
-		cw, found := outCache[parts[0]]
-		if found {
+		cw := ReadCache(parts[0])
+		if cw != nil {
 			return &StringReader{resp: selectWithArgs(parts[1:], cw.sb.String(), stdErr, fn), delayMs: 0}
 		}
 	}
@@ -202,22 +245,6 @@ func (sr *StringReader) Read(p []byte) (n int, err error) {
 		return 0, io.EOF
 	}
 	return j, nil
-}
-
-func MutateListFromMemCache(in []string) []string {
-	out := make([]string, 0)
-	for _, a := range in {
-		out = append(out, MutateStringFromMemCache(a))
-	}
-	return out
-}
-
-func MutateStringFromMemCache(in string) string {
-	out := in
-	for n, v := range outCache {
-		out = strings.Replace(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(v.sb.String()), -1)
-	}
-	return out
 }
 
 type Select struct {

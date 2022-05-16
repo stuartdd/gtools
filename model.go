@@ -9,13 +9,23 @@ import (
 )
 
 var (
-	actionsPrefName = parser.NewDotPath("actions")
+	actionsPrefName          = parser.NewDotPath("actions")
+	showExit1PrefName        = parser.NewDotPath("config.showExit1")
+	cacheInputFieldsPrefName = parser.NewDotPath("config.cachedFields")
+	ShowExit1                = false
 )
+
+type InputValue struct {
+	name  string
+	desc  string
+	value string
+}
 
 type Model struct {
 	fileName   string
 	root       parser.NodeC
 	actionList []*ActionData
+	values     map[string]*InputValue
 }
 
 type ActionData struct {
@@ -47,12 +57,41 @@ func NewModelFromFile(fileName string) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	mod := &Model{fileName: fileName, root: configData, actionList: make([]*ActionData, 0)}
+	mod := &Model{fileName: fileName, root: configData, actionList: make([]*ActionData, 0), values: make(map[string]*InputValue)}
 	err = mod.loadActions()
 	if err != nil {
 		return nil, err
 	}
+	ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
 	return mod, nil
+}
+
+func (m *Model) LoadInputFields() error {
+	n, err := parser.Find(m.root, cacheInputFieldsPrefName)
+	if err != nil || n == nil {
+		return fmt.Errorf("cannot find '%s' in the config file '%s'", cacheInputFieldsPrefName, m.fileName)
+	}
+	no, ok := n.(*parser.JsonObject)
+	if !ok {
+		return fmt.Errorf("element '%s' in the config file '%s' is not an Object node", cacheInputFieldsPrefName, m.fileName)
+	}
+	for _, v := range no.GetValues() {
+		name := v.GetName()
+		if v.GetNodeType() != parser.NT_OBJECT {
+			return fmt.Errorf("element '%s.%s' in the config file '%s' is not an Object node", cacheInputFieldsPrefName, name, m.fileName)
+		}
+		desc := m.getStringWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("desc"), "")
+		if desc == "" {
+			return fmt.Errorf("element '%s.%s.desc' in the config file '%s' not found or not a string", cacheInputFieldsPrefName, name, m.fileName)
+		}
+		defaultVal := m.getStringWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("default"), "")
+		if defaultVal == "" {
+			return fmt.Errorf("element '%s.%s.default' in the config file '%s' not found or not a string", cacheInputFieldsPrefName, name, m.fileName)
+		}
+		v := &InputValue{name: name, desc: desc, value: defaultVal}
+		m.values[name] = v
+	}
+	return nil
 }
 
 func (m *Model) loadActions() error {
@@ -147,6 +186,60 @@ func (m *Model) loadActions() error {
 
 func (m *Model) len() int {
 	return len(m.actionList)
+}
+
+func (m *Model) MutateStringFromValues(in string, getValue func(string, string) (string, error)) (string, error) {
+	out := in
+	for n, v := range m.values {
+		rep := fmt.Sprintf("%%{%s}", n)
+		if strings.Contains(in, rep) {
+			value, err := getValue(v.desc, v.value)
+			if err != nil {
+				return "", err
+			}
+			out = strings.Replace(out, rep, strings.TrimSpace(value), -1)
+		}
+	}
+	return out, nil
+}
+
+func (m *Model) MutateListFromValues(in []string, getValue func(string, string) (string, error)) ([]string, error) {
+	out := make([]string, 0)
+	for _, a := range in {
+		val, err := m.MutateStringFromValues(a, getValue)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, val)
+	}
+	return out, nil
+}
+
+func (m *Model) getStringWithFallback(p *parser.Path, fb string) string {
+	n, err := parser.Find(m.root, p)
+	if err != nil || n == nil {
+		return fb
+	}
+	nb, ok := n.(*parser.JsonString)
+	if ok {
+		if nb.GetValue() == "" {
+			return fb
+		}
+		return nb.GetValue()
+	}
+	return fb
+}
+
+func (m *Model) getBoolWithFallback(p *parser.Path, fb bool) bool {
+	n, err := parser.Find(m.root, p)
+	if err != nil || n == nil {
+		return fb
+	}
+	nb, ok := n.(*parser.JsonBool)
+	if ok {
+		return nb.GetValue()
+	}
+	return fb
 }
 
 func (p *Model) getActionData(name, desc string) *ActionData {

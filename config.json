@@ -1,4 +1,13 @@
 {
+    "config": {
+        "showExit1": false,
+        "cachedFields": {
+            "commitMessage": {
+                "desc": "Commit message",
+                "default": "commit"
+            }
+        }
+    },
     "actions": [
         {
             "name": "Start Code",
@@ -50,7 +59,7 @@
                     "args": [
                         "commit",
                         "-m",
-                        "Changes"
+                        "%{commitMessage}"
                     ]
                 }
             ]
@@ -147,7 +156,7 @@
                         "  if [ -f \"$FILE\" ]; then\n",
                         "    ./gitpush.sh\n",
                         "  fi\n",
-                        "  sleep 2\n",
+                        "  sleep 5\n",
                         "done\n"
                     ]
                 },

@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -32,6 +33,7 @@ type ActionButton struct {
 }
 
 func main() {
+	InitCache()
 	var err error
 	if len(os.Args) == 1 {
 		model, err = NewModelFromFile("config.json")
@@ -41,6 +43,12 @@ func main() {
 	if err != nil {
 		exitApp(err.Error(), 1)
 	}
+
+	err = model.LoadInputFields()
+	if err != nil {
+		exitApp(err.Error(), 1)
+	}
+
 	gui()
 }
 
@@ -97,9 +105,11 @@ func buttonBar(exec func(string, string, string)) *fyne.Container {
 	bb.Add(widget.NewButtonWithIcon("Close(0)", theme.LogoutIcon(), func() {
 		exec("exit", "", "")
 	}))
-	bb.Add(widget.NewButtonWithIcon("Close(1)", theme.LogoutIcon(), func() {
-		exec("exit1", "", "")
-	}))
+	if ShowExit1 {
+		bb.Add(widget.NewButtonWithIcon("Close(1)", theme.LogoutIcon(), func() {
+			exec("exit1", "", "")
+		}))
+	}
 	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
 		m, err := NewModelFromFile(model.fileName)
 		if err != nil {
@@ -126,7 +136,11 @@ func execMultipleAction(data *ActionData) {
 	stdErr := NewMyWriter(STD_ERR)
 	go func() {
 		for _, act := range data.commands {
-			execSingleAction(act, stdOut, stdErr)
+			err := execSingleAction(act, stdOut, stdErr)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
 			if act.err != nil {
 				stdErr.Write([]byte(act.err.Error()))
 				stdErr.Write([]byte("\n"))
@@ -136,8 +150,38 @@ func execMultipleAction(data *ActionData) {
 	}()
 }
 
-func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) {
+func entryDialog(desc, value string) (string, error) {
+	ret := value
+	var err error = nil
+	wait := true
+	entry := widget.NewEntry()
+	items := make([]*widget.FormItem, 0)
+	items = append(items, widget.NewFormItem("Default value is:", widget.NewLabel(fmt.Sprintf("'%s'", value))))
+	items = append(items, widget.NewFormItem("Enter new value:", entry))
+	d := dialog.NewForm("This action requires a "+desc, "OK", "Abort", items, func(b bool) {
+		if b {
+			if entry.Text != "" {
+				ret = entry.Text
+			}
+		} else {
+			err = fmt.Errorf("action aborted by user")
+		}
+		wait = false
+	}, mainWindow)
+	d.Show()
+	for wait {
+		time.Sleep(100 + time.Millisecond)
+	}
+	return ret, err
+}
+
+func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) error {
+	var err error = nil
 	args := MutateListFromMemCache(sa.args)
+	args, err = model.MutateListFromValues(args, entryDialog)
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command(sa.command, args...)
 	if sa.sysin != "" {
 		si := NewStringReader(sa.sysin, cmd.Stdin, stdErr)
@@ -172,12 +216,13 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) {
 	sa.err = nil
 	sa.err = cmd.Start()
 	if sa.err != nil {
-		return
+		return sa.err
 	}
 	sa.err = cmd.Wait()
 	if sa.delay > 0.0 {
 		time.Sleep(time.Duration(sa.delay) * time.Millisecond)
 	}
+	return nil
 }
 
 func actionClose(data string, code int) {
