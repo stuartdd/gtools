@@ -131,25 +131,6 @@ func action(exec, data1, data2 string) {
 	}
 }
 
-func execMultipleAction(data *ActionData) {
-	stdOut := NewMyWriter(STD_OUT)
-	stdErr := NewMyWriter(STD_ERR)
-	go func() {
-		for _, act := range data.commands {
-			err := execSingleAction(act, stdOut, stdErr)
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-			if act.err != nil {
-				stdErr.Write([]byte(act.err.Error()))
-				stdErr.Write([]byte("\n"))
-				return
-			}
-		}
-	}()
-}
-
 func entryDialog(desc, value string) (string, error) {
 	ret := value
 	var err error = nil
@@ -175,6 +156,26 @@ func entryDialog(desc, value string) (string, error) {
 	return ret, err
 }
 
+func execMultipleAction(data *ActionData) {
+	model.ResetCacheValues()
+	stdOut := NewMyWriter(STD_OUT)
+	stdErr := NewMyWriter(STD_ERR)
+	go func() {
+		for _, act := range data.commands {
+			err := execSingleAction(act, stdOut, stdErr)
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+			if act.err != nil {
+				stdErr.Write([]byte(act.err.Error()))
+				stdErr.Write([]byte("\n"))
+				return
+			}
+		}
+	}()
+}
+
 func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) error {
 	var err error = nil
 	args := MutateListFromMemCache(sa.args)
@@ -184,7 +185,10 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) error {
 	}
 	cmd := exec.Command(sa.command, args...)
 	if sa.sysin != "" {
-		si := NewStringReader(sa.sysin, cmd.Stdin, stdErr)
+		si, err := NewStringReader(sa.sysin, cmd.Stdin)
+		if err != nil {
+			return err
+		}
 		siCloser, ok := si.(io.ReadCloser)
 		if ok {
 			defer siCloser.Close()

@@ -85,16 +85,28 @@ func MutateListFromMemCache(in []string) []string {
 }
 
 type MyWriter struct {
-	id int
+	id     int
+	filter string
 }
 
 func NewMyWriter(id int) *MyWriter {
-	return &MyWriter{id: id}
+	return &MyWriter{id: id, filter: ""}
+}
+
+func NewMyFilterWriter(id int, filter string) *MyWriter {
+	return &MyWriter{id: id, filter: filter}
 }
 
 func (mw *MyWriter) Write(p []byte) (n int, err error) {
+	pLen := len(p)
+	if mw.filter != "" {
+		p, err = filter(p, mw.filter)
+		if err != nil {
+			return 0, err
+		}
+	}
 	fmt.Printf("%s%s%s", stdColourPrefix[mw.id], string(p), RESET)
-	return len(p), nil
+	return pLen, nil
 }
 
 func NewCacheWriterValue(name, desc, value string) (*CacheWriter, error) {
@@ -119,7 +131,10 @@ func NewCacheWriter(name, filter string) (*CacheWriter, error) {
 func (cw *CacheWriter) Write(p []byte) (n int, err error) {
 	pLen := len(p)
 	if cw.filter != "" {
-		p = filter(p, cw.filter)
+		p, err = filter(p, cw.filter)
+		if err != nil {
+			return 0, err
+		}
 	}
 	np, errp := cw.sb.Write(p)
 	if errp != nil {
@@ -141,7 +156,10 @@ func PrefixMatch(s string, pref string) (string, bool) {
 
 func NewWriter(fileName, filter string, defaultOut, stdErr *MyWriter) io.Writer {
 	if fileName == "" {
-		return defaultOut
+		if filter == "" {
+			return defaultOut
+		}
+		return NewMyFilterWriter(defaultOut.id, filter)
 	}
 	var err error
 	var fn string
@@ -186,7 +204,11 @@ func (fw *FileWriter) Write(p []byte) (n int, err error) {
 	if fw.canWrite {
 		pLen := len(p)
 		if fw.filter != "" {
-			p = filter(p, fw.filter)
+			p, err = filter(p, fw.filter)
+			if err != nil {
+				return 0, err
+			}
+
 		}
 		_, err = fw.file.Write(p)
 		if err != nil {
@@ -198,9 +220,9 @@ func (fw *FileWriter) Write(p []byte) (n int, err error) {
 	return fw.stdOut.Write(p)
 }
 
-func NewStringReader(selectFrom string, defaultIn io.Reader, stdErr *MyWriter) io.Reader {
+func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) {
 	if selectFrom == "" {
-		return defaultIn
+		return defaultIn, nil
 	}
 
 	fn, found := PrefixMatch(selectFrom, CACHE_PREF)
@@ -208,18 +230,26 @@ func NewStringReader(selectFrom string, defaultIn io.Reader, stdErr *MyWriter) i
 		parts := strings.Split(fn, "|")
 		cw := ReadCache(parts[0])
 		if cw != nil {
-			return &StringReader{resp: selectWithArgs(parts[1:], cw.sb.String(), stdErr, fn), delayMs: 0}
+			resp, err := selectWithArgs(parts[1:], cw.sb.String(), fn)
+			if err != nil {
+				return nil, err
+			}
+			return &StringReader{resp: resp, delayMs: 0}, nil
 		}
 	}
 	fn, found = PrefixMatch(selectFrom, FILE_PREF)
 	if found {
 		parts := strings.Split(fn, "|")
 		if len(parts) > 1 {
-			return &StringReader{resp: selectFromFileWithArgs(parts[0], parts[1:], stdErr, selectFrom), delayMs: 0}
+			resp, err := selectFromFileWithArgs(parts[0], parts[1:], selectFrom)
+			if err != nil {
+				return nil, err
+			}
+			return &StringReader{resp: resp, delayMs: 0}, nil
 		}
 	}
 
-	return &StringReader{resp: selectFrom, delayMs: 0}
+	return &StringReader{resp: selectFrom, delayMs: 0}, nil
 }
 
 func (sr *StringReader) Read(p []byte) (n int, err error) {
@@ -255,7 +285,7 @@ type Select struct {
 	suffix   string
 }
 
-func NewSelect(a string, stdErr *MyWriter, desc string) *Select {
+func NewSelect(a string, desc string) (*Select, error) {
 	var line int = -1
 	var contains string = ""
 	var delim string = ""
@@ -277,54 +307,60 @@ func NewSelect(a string, stdErr *MyWriter, desc string) *Select {
 	if len(ap) > 2 {
 		ind, err = strconv.Atoi(ap[2])
 		if err != nil {
-			stdErr.Write([]byte(fmt.Sprintf("String to int conversion failed for selection '%s' element '%s'\n", desc, ap[0])))
-			ind = -1
+			return nil, fmt.Errorf("string to int conversion failed for selection '%s' element '%s'", desc, ap[0])
 		}
 	}
 	if len(ap) > 3 {
 		suffix = a[len(ap[0])+len(ap[1])+len(ap[2])+3:]
 	}
-	return &Select{line: line, contains: contains, delim: delim, index: ind, suffix: suffix}
+	return &Select{line: line, contains: contains, delim: delim, index: ind, suffix: suffix}, nil
 }
 
-func parseSelectArgs(args []string, stdErr *MyWriter, desc string) []*Select {
+func parseSelectArgs(args []string, desc string) ([]*Select, error) {
 	sels := make([]*Select, 0)
 	for _, a := range args {
-		sels = append(sels, NewSelect(a, stdErr, desc))
+		newSels, err := NewSelect(a, desc)
+		if err != nil {
+			return nil, err
+		}
+		sels = append(sels, newSels)
 	}
-	return sels
+	return sels, nil
 }
 
-func selectFromFileWithArgs(fileName string, args []string, stdErr *MyWriter, desc string) string {
+func selectFromFileWithArgs(fileName string, args []string, desc string) (string, error) {
 	dat, err := os.ReadFile(fileName)
 	if err != nil {
-		stdErr.Write([]byte(fmt.Sprintf("Failed to load file '%s' from file input definition '%s'\n", fileName, desc)))
-		return desc
+		return "", fmt.Errorf("failed to load file '%s' from file input definition '%s'", fileName, desc)
 	}
-	selectList := parseSelectArgs(args, stdErr, desc)
-
+	selectList, err := parseSelectArgs(args, desc)
+	if err != nil {
+		return "", err
+	}
 	var sb strings.Builder
 	scanner := bufio.NewScanner(strings.NewReader(string(dat)))
 	line := 0
 	for scanner.Scan() {
 		selectLineWithArgs(selectList, line, scanner.Text(), &sb)
 	}
-	return sb.String()
+	return sb.String(), nil
 }
 
-func selectWithArgs(args []string, in string, stdErr *MyWriter, desc string) string {
+func selectWithArgs(args []string, in string, desc string) (string, error) {
 	if len(args) == 0 {
-		return in
+		return in, nil
 	}
-	selectList := parseSelectArgs(args, stdErr, desc)
-
+	selectList, err := parseSelectArgs(args, desc)
+	if err != nil {
+		return "", err
+	}
 	var sb strings.Builder
 	scanner := bufio.NewScanner(strings.NewReader(in))
 	line := 0
 	for scanner.Scan() {
 		selectLineWithArgs(selectList, line, scanner.Text(), &sb)
 	}
-	return sb.String()
+	return sb.String(), nil
 }
 
 func selectLineWithArgs(args []*Select, ln int, line string, sb *strings.Builder) {
@@ -345,17 +381,17 @@ func selectLineWithArgs(args []*Select, ln int, line string, sb *strings.Builder
 	}
 }
 
-func filter(p []byte, filter string) []byte {
-	var sb strings.Builder
-	var out strings.Builder
-	for _, b := range p {
-		sb.WriteByte(b)
-		if b == '\n' {
-			if strings.Contains(sb.String(), filter) {
-				out.WriteString(sb.String())
-			}
-			sb.Reset()
-		}
+func filter(p []byte, filter string) ([]byte, error) {
+	parts := strings.Split(filter, "|")
+	selectList, err := parseSelectArgs(parts[1:], "")
+	if err != nil {
+		return nil, err
 	}
-	return []byte(out.String())
+	var sb strings.Builder
+	scanner := bufio.NewScanner(strings.NewReader(string(p)))
+	line := 0
+	for scanner.Scan() {
+		selectLineWithArgs(selectList, line, scanner.Text(), &sb)
+	}
+	return []byte(sb.String()), nil
 }

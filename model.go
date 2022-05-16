@@ -16,9 +16,11 @@ var (
 )
 
 type InputValue struct {
-	name  string
-	desc  string
-	value string
+	name          string
+	desc          string
+	value         string
+	read          bool
+	inputRequired bool
 }
 
 type Model struct {
@@ -69,7 +71,7 @@ func NewModelFromFile(fileName string) (*Model, error) {
 func (m *Model) LoadInputFields() error {
 	n, err := parser.Find(m.root, cacheInputFieldsPrefName)
 	if err != nil || n == nil {
-		return fmt.Errorf("cannot find '%s' in the config file '%s'", cacheInputFieldsPrefName, m.fileName)
+		return nil
 	}
 	no, ok := n.(*parser.JsonObject)
 	if !ok {
@@ -88,7 +90,8 @@ func (m *Model) LoadInputFields() error {
 		if defaultVal == "" {
 			return fmt.Errorf("element '%s.%s.default' in the config file '%s' not found or not a string", cacheInputFieldsPrefName, name, m.fileName)
 		}
-		v := &InputValue{name: name, desc: desc, value: defaultVal}
+		inputRequired := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("input"), false)
+		v := &InputValue{name: name, desc: desc, value: defaultVal, read: false, inputRequired: inputRequired}
 		m.values[name] = v
 	}
 	return nil
@@ -188,16 +191,28 @@ func (m *Model) len() int {
 	return len(m.actionList)
 }
 
+func (m *Model) ResetCacheValues() {
+	for _, v := range m.values {
+		v.read = false
+	}
+}
+
 func (m *Model) MutateStringFromValues(in string, getValue func(string, string) (string, error)) (string, error) {
 	out := in
 	for n, v := range m.values {
 		rep := fmt.Sprintf("%%{%s}", n)
 		if strings.Contains(in, rep) {
-			value, err := getValue(v.desc, v.value)
-			if err != nil {
-				return "", err
+			if !v.read && v.inputRequired {
+				value, err := getValue(v.desc, v.value)
+				if err != nil {
+					return "", err
+				}
+				out = strings.Replace(out, rep, strings.TrimSpace(value), -1)
+				v.read = true
+				v.value = value
+			} else {
+				out = strings.Replace(out, rep, strings.TrimSpace(v.value), -1)
 			}
-			out = strings.Replace(out, rep, strings.TrimSpace(value), -1)
 		}
 	}
 	return out, nil
