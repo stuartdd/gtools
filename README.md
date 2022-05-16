@@ -100,7 +100,7 @@ Form 2 is as JSON ojects. In this case the actions are displayed in alphabetical
 }
 ```
 
-Each action is defined as follows:
+Each individual action is defined as follows:
 
 ```json
 "name": "Start VSCode",
@@ -126,6 +126,8 @@ Each action is defined as follows:
 | desc | Defined the value displayed along side the action button | required |
 | list | Defines a number of commands to be run one after the other | required |
 
+### Commands (cmd):
+
 Each command has the following fields:
 
 | Field name      | Description | optional |
@@ -140,11 +142,113 @@ Each command has the following fields:
 
 ### Args
 
+Args are defined as a String list. For example if we wand to execute the command:
+
+```bash
+go mod tidy
+```
+
+We would define the folllowing json:
+
+```json
+cmd": "go",
+"args": [
+    "mod", "tidy"
+],
+```
+
+Each argument can contain a substitution expression. This expression will remain unchanged if it's source cannot be found.
+
+There are two sources:
+
+1: The result of a previous 'outFile' where 'memory is defined. For example:
+
+```json
+"outFile": "memory:myvar"
+```
+
+The sysout from the command is optionally filtered  (see Out Filters below) and stored in a cache with the name 'myvar'
+
+2: The result of a 'cachedFields' entry defined in the 'config' section of the config file.
+
+```json
+"cachedFields": {
+    "commitMessage": {
+        "desc": "Commit message",
+        "default": "commit"
+    }
+}
+```
+If 'myvar' contains the text **'ready to'**.
+
+The result of the following:
+
+```json
+cmd": "echo",
+"args": [
+    "%{myvar}", "%{commitMessage}"
+],
+```
+
+will be:
+
+```bash
+echo ready to commit
+>ready to commit
+```
+
 ### Output
 
-### In Filters
+The 'outFile' parameter has multiple forms:
+
+| form      | Description |
+| ----------- | ----------- |
+| A_valid_file_name | The file will be deleted first, overwriting the previous content. Sysout will be written to the file. Only a single result will be written. | 
+| append:A_valid_file_name | The 'append:' prefix means Sysout will be appended to the file. | 
+| memory:aName | The 'memory:' prefix means Sysout will be written to the cache with the given name ('aName'). | 
+
+### Filters
+
+Filters can be applied to sysout (outFile) and sysin (in) as required.
+
+Two types of filters exist In Filters and Out Filters. They are defined slightly differently. 
 
 ### Out Filters
+
+An outFilter filters the generated sysout text. This can be written to sysout (default), a file or to cache memory. 
+
+For example:
+
+```json
+"outFilter":"l1,s1,p1|n2,s2,p2,d2",
+```
+
+Multiple filters are devided by the '|' and each consists of up to 4 elements separated by  a ','
+
+A single filter does not require a '|'. Multiple filters are seperated by '|'.
+
+If the first element is a number then it is a Zero based line number. If it is not a valid integer it is treated as a string.
+
+Any value after the 3rd comma is used as a seperator and appended to each output.
+
+The second value is a separator used to split the line in to N parts. 
+
+The third element is a number used to select the part (Zero based). If the seperator is defined but no part number is defined then the whole line is output. 
+
+| Example | Description |
+| ----------- | ----------- |
+| "outFilter":"xyz" | All lines containing 'xyz' are output |
+| "outFilter":"5" | Only line 5 wil be output. If there are no enough lines, no output will be written |
+| "outFilter":"xyz\|4" | All lines containing 'xyz' and line 4 are output |
+| "outFilter":"xyz,=,1" | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output |
+| "outFilter":"xyz,=,1,," | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ',' |
+| "outFilter":"xyz,=,1,\n" | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a new line |
+| "outFilter":"xyz,=,1, . " | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ' . ' |
+| "outFilter":"xyz,=,1,," | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ',' |
+| "outFilter":"xyz,,,\n" | All lines containing 'xyz' are output followed by a new line |
+| "outFilter":"0,,,, \|1,,,\n" | Line 0 is written followed by a ', ' followed by line 1 folllowed by a new line |
+
+### In Filters
 
 ### CachedFields
 
