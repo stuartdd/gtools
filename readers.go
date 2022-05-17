@@ -100,7 +100,7 @@ func NewMyFilterWriter(id int, filter string) *MyWriter {
 func (mw *MyWriter) Write(p []byte) (n int, err error) {
 	pLen := len(p)
 	if mw.filter != "" {
-		p, err = filter(p, mw.filter)
+		p, err = Filter(p, mw.filter)
 		if err != nil {
 			return 0, err
 		}
@@ -131,7 +131,7 @@ func NewCacheWriter(name, filter string) (*CacheWriter, error) {
 func (cw *CacheWriter) Write(p []byte) (n int, err error) {
 	pLen := len(p)
 	if cw.filter != "" {
-		p, err = filter(p, cw.filter)
+		p, err = Filter(p, cw.filter)
 		if err != nil {
 			return 0, err
 		}
@@ -204,7 +204,7 @@ func (fw *FileWriter) Write(p []byte) (n int, err error) {
 	if fw.canWrite {
 		pLen := len(p)
 		if fw.filter != "" {
-			p, err = filter(p, fw.filter)
+			p, err = Filter(p, fw.filter)
 			if err != nil {
 				return 0, err
 			}
@@ -301,10 +301,10 @@ func NewSelect(a string, desc string) (*Select, error) {
 			line = -1
 		}
 	}
-	if len(ap) > 1 {
+	if len(ap) > 1 && ap[1] != "" {
 		delim = ap[1]
 	}
-	if len(ap) > 2 {
+	if len(ap) > 2 && ap[2] != "" {
 		ind, err = strconv.Atoi(ap[2])
 		if err != nil {
 			return nil, fmt.Errorf("string to int conversion failed for selection '%s' element '%s'", desc, ap[0])
@@ -368,11 +368,10 @@ func selectLineWithArgs(args []*Select, ln int, line string, sb *strings.Builder
 		if ln == s.line || (s.line == -1 && s.contains != "" && strings.Contains(line, s.contains)) {
 			if s.index < 0 || s.delim == "" {
 				sb.WriteString(line)
+				sb.WriteString(s.suffix)
 			} else {
 				ls := strings.Split(line, s.delim)
-				if s.index >= len(ls) {
-					sb.WriteString(line)
-				} else {
+				if s.index < len(ls) {
 					sb.WriteString(ls[s.index])
 					sb.WriteString(s.suffix)
 				}
@@ -381,9 +380,9 @@ func selectLineWithArgs(args []*Select, ln int, line string, sb *strings.Builder
 	}
 }
 
-func filter(p []byte, filter string) ([]byte, error) {
+func Filter(p []byte, filter string) ([]byte, error) {
 	parts := strings.Split(filter, "|")
-	selectList, err := parseSelectArgs(parts[1:], "")
+	selectList, err := parseSelectArgs(parts, "")
 	if err != nil {
 		return nil, err
 	}
@@ -392,6 +391,7 @@ func filter(p []byte, filter string) ([]byte, error) {
 	line := 0
 	for scanner.Scan() {
 		selectLineWithArgs(selectList, line, scanner.Text(), &sb)
+		line++
 	}
 	return []byte(sb.String()), nil
 }

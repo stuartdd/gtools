@@ -223,17 +223,39 @@ For example:
 "outFilter":"l1,s1,p1|n2,s2,p2,d2",
 ```
 
-Multiple filters are devided by the '|' and each consists of up to 4 elements separated by  a ','
+A _'filter'_ is divided in to _'selector'_(s) by a '|' char.
 
-A single filter does not require a '|'. Multiple filters are seperated by '|'.
+Selectors consist of up to 4 _'element'_(s) separated by  a ','
 
-If the first element is a number then it is a Zero based line number. If it is not a valid integer it is treated as a string.
+All _'selector'_(s) applied to each to each line in order.
 
-Any value after the 3rd comma is used as a seperator and appended to each output.
+A single _'selector'_ does not require a '|'.
 
-The second value is a separator used to split the line in to N parts. 
+Stage 1
 
-The third element is a number used to select the part (Zero based). If the seperator is defined but no part number is defined then the whole line is output. 
+If _'element'_[0] is a number then it is a ZERO based line number _'selector'_. If the line number is >= to the number of lines then the line is NOT selected.
+
+If _'element'_[0] is not a valid integer it is treated as a string _'selector'_. All lines that contain the string will be selected.
+
+Stage 2
+
+If _'element'_[1] is a splitter character. The selected line is split in to N parts.
+
+If _'element'_[1] is "". The selected line is treated as a single part.
+
+Stage 3
+
+_'element'_[2] is a  ZERO based part number. The part is selected. If _'element'_[2] is >= number of parts then no part is selected.
+
+If _'element'_[2] is "". The then the whole line is selected even if _'element'_[1] has a splitter.
+
+Stage 4
+
+Any text after _'element'_[2] and a ',' is treated as a suffix.
+
+Each selected piece of text is returned after being appended with the suffix. If no text is selected then no suffix is appended.  
+
+See the test file 'main_test.go' for examples of filters and their returned values.
 
 | Example | Description |
 | ----------- | ----------- |
