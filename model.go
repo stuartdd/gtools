@@ -8,6 +8,16 @@ import (
 	"github.com/stuartdd2/JsonParser4go/parser"
 )
 
+const (
+	STD_OUT = 0
+	STD_ERR = 1
+	STD_IN  = 2
+
+	FILE_APPEND_PREF = "append:"
+	CACHE_PREF       = "memory:"
+	FILE_PREF        = "file:"
+)
+
 var (
 	actionsPrefName          = parser.NewDotPath("actions")
 	showExit1PrefName        = parser.NewDotPath("config.showExit1")

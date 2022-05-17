@@ -22,8 +22,9 @@ const (
 )
 
 var (
-	mainWindow fyne.Window
-	model      *Model
+	stdColourPrefix = []string{GREEN, RED}
+	mainWindow      fyne.Window
+	model           *Model
 )
 
 type ActionButton struct {
@@ -33,7 +34,6 @@ type ActionButton struct {
 }
 
 func main() {
-	InitCache()
 	var err error
 	if len(os.Args) == 1 {
 		model, err = NewModelFromFile("config.json")
@@ -158,8 +158,8 @@ func entryDialog(desc, value string) (string, error) {
 
 func execMultipleAction(data *ActionData) {
 	model.ResetCacheValues()
-	stdOut := NewMyWriter(STD_OUT)
-	stdErr := NewMyWriter(STD_ERR)
+	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
+	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
 	go func() {
 		for _, act := range data.commands {
 			err := execSingleAction(act, stdOut, stdErr)
@@ -176,7 +176,7 @@ func execMultipleAction(data *ActionData) {
 	}()
 }
 
-func execSingleAction(sa *SingleAction, stdOut, stdErr *MyWriter) error {
+func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 	var err error = nil
 	args := MutateListFromMemCache(sa.args)
 	args, err = model.MutateListFromValues(args, entryDialog)
