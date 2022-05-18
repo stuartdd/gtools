@@ -48,7 +48,13 @@ func main() {
 	if err != nil {
 		exitApp(err.Error(), 1)
 	}
-
+	if RunAtStart != "" {
+		action, err := model.GetActionDataForName(RunAtStart)
+		if err != nil {
+			exitApp(err.Error(), 1)
+		}
+		execMultipleAction(action)
+	}
 	gui()
 }
 
@@ -89,13 +95,15 @@ func centerPanel() *fyne.Container {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
 	for _, l := range model.actionList {
-		hp := container.NewHBox()
-		btn := newActionButton(l.name, theme.SettingsIcon(), func(action *ActionData) {
-			execMultipleAction(action)
-		}, l)
-		hp.Add(btn)
-		hp.Add(widget.NewLabel(l.desc))
-		vp.Add(hp)
+		if !l.hide {
+			hp := container.NewHBox()
+			btn := newActionButton(l.name, theme.SettingsIcon(), func(action *ActionData) {
+				execMultipleAction(action)
+			}, l)
+			hp.Add(btn)
+			hp.Add(widget.NewLabel(MutateStringFromMemCache(l.desc)))
+			vp.Add(hp)
+		}
 	}
 	return vp
 }

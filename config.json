@@ -5,11 +5,36 @@
             "commitMessage": {
                 "desc": "Commit message",
                 "default": "commit",
-                "input":true
+                "input": true
             }
-        }
+        },
+        "runAtStart": "Git details"
     },
     "actions": [
+        {
+            "name": "Git details",
+            "desc": "Check local files",
+            "hide": true,
+            "list": [
+                {
+                    "cmd": "git",
+                    "args": [
+                        "config",
+                        "-l"
+                    ],
+                    "outFilter": "user.name,=,1",
+                    "outFile": "memory:gituser"
+                },
+                {
+                    "cmd": "clear",
+                    "args": []
+                },
+                {
+                    "cmd": "echo",
+                    "args": ["GTool started:"]
+                }
+            ]
+        },
         {
             "name": "Start Code",
             "desc": "Start the dev environment",
@@ -23,29 +48,8 @@
             ]
         },
         {
-            "name": "Git details",
-            "desc": "Check local files",
-            "list": [
-                {
-                    "cmd": "git",
-                    "args": ["config","-l"],
-                    "outFilter":"user.name",
-                    "outFile":"memory:gituser"
-                }
-             ]
-        },{
-            "name": "Git USER",
-            "desc": "Check local files",
-            "list": [
-                {
-                    "cmd": "echo",
-                    "args": ["git user = %{gituser}"]
-
-                }
-             ]
-        },{
             "name": "Git status",
-            "desc": "Check local files",
+            "desc": "Check local git status",
             "list": [
                 {
                     "cmd": "clear",
@@ -88,51 +92,22 @@
         },
         {
             "name": "Create push",
-            "desc": "Script for stuartdd",
+            "desc": "Script for %{gituser}",
             "list": [
                 {
                     "cmd": "wget",
-                    "outFile": "memory:stuartdd",
+                    "outFile": "memory:gitauth",
                     "args": [
                         "-q",
                         "--output-document=-",
-                        "http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/stuartdd"
+                        "http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/%{gituser}"
                     ]
                 },
                 {
                     "cmd": "echo",
                     "outFile": "gitpush.sh",
                     "args": [
-                        "gitpush.sh stuartdd %{stuartdd} &"
-                    ]
-                },
-                {
-                    "cmd": "chmod",
-                    "args": [
-                        "+x",
-                        "gitpush.sh"
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "Create push",
-            "desc": "Script for stuartdd2",
-            "list": [
-                {
-                    "cmd": "wget",
-                    "outFile": "memory:stuartdd2",
-                    "args": [
-                        "-q",
-                        "--output-document=-",
-                        "http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/stuartdd2"
-                    ]
-                },
-                {
-                    "cmd": "echo",
-                    "outFile": "gitpush.sh",
-                    "args": [
-                        "gitpush.sh stuartdd2 %{stuartdd2} &"
+                        "gitpush.sh %{gituser} %{gitauth} &"
                     ]
                 },
                 {

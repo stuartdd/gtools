@@ -21,8 +21,10 @@ const (
 var (
 	actionsPrefName          = parser.NewDotPath("actions")
 	showExit1PrefName        = parser.NewDotPath("config.showExit1")
+	runAtStartPrefName       = parser.NewDotPath("config.runAtStart")
 	cacheInputFieldsPrefName = parser.NewDotPath("config.cachedFields")
 	ShowExit1                = false
+	RunAtStart               = ""
 )
 
 type InputValue struct {
@@ -43,6 +45,7 @@ type Model struct {
 type ActionData struct {
 	name     string
 	desc     string
+	hide     bool
 	commands []*SingleAction
 }
 
@@ -75,7 +78,17 @@ func NewModelFromFile(fileName string) (*Model, error) {
 		return nil, err
 	}
 	ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
+	RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
 	return mod, nil
+}
+
+func (m *Model) GetActionDataForName(name string) (*ActionData, error) {
+	for _, a := range m.actionList {
+		if a.name == name {
+			return a, nil
+		}
+	}
+	return nil, fmt.Errorf("action data with name '%s' could not be found", name)
 }
 
 func (m *Model) LoadInputFields() error {
@@ -145,7 +158,11 @@ func (m *Model) loadActions() error {
 		if err != nil {
 			return err
 		}
-		actionData := m.getActionData(name, desc)
+		hide, err := getBoolOptNode(actionNode.(parser.NodeC), "hide", false, msg)
+		if err != nil {
+			return err
+		}
+		actionData := m.getActionData(name, desc, hide)
 		cmdList, err := getListNode(actionNode.(parser.NodeC), "list")
 		if err != nil {
 			return fmt.Errorf("node at %s does not have a list[] node", msg)
@@ -267,13 +284,13 @@ func (m *Model) getBoolWithFallback(p *parser.Path, fb bool) bool {
 	return fb
 }
 
-func (p *Model) getActionData(name, desc string) *ActionData {
+func (p *Model) getActionData(name, desc string, hide bool) *ActionData {
 	for _, a1 := range p.actionList {
 		if a1.name == name && a1.desc == desc {
 			return a1
 		}
 	}
-	n := NewActionData(name, desc)
+	n := NewActionData(name, desc, hide)
 	p.actionList = append(p.actionList, n)
 	return n
 }
@@ -294,10 +311,23 @@ func getStringOptNode(node parser.NodeC, name, def, msg string) (string, error) 
 	if a == nil {
 		return def, nil
 	}
-	if a.GetNodeType() != parser.NT_STRING {
-		return "", fmt.Errorf("action node '%s' does not contain the optional 'String' node '%s'", msg, name)
+	as, ok := a.(*parser.JsonString)
+	if !ok {
+		return "", fmt.Errorf("action node '%s' optional %s node is not a String node '%s'", msg, name)
 	}
-	return a.String(), nil
+	return as.String(), nil
+}
+
+func getBoolOptNode(node parser.NodeC, name string, def bool, msg string) (bool, error) {
+	a := node.GetNodeWithName(name)
+	if a == nil {
+		return def, nil
+	}
+	ab, ok := a.(*parser.JsonBool)
+	if !ok {
+		return def, fmt.Errorf("action node '%s' optional %s node is not a Boolean node '%s'", msg, name)
+	}
+	return ab.GetValue(), nil
 }
 
 func getNumberOptNode(node parser.NodeC, name, msg string, def float64) (float64, error) {
@@ -305,10 +335,11 @@ func getNumberOptNode(node parser.NodeC, name, msg string, def float64) (float64
 	if a == nil {
 		return def, nil
 	}
-	if a.GetNodeType() != parser.NT_NUMBER {
-		return 0, fmt.Errorf("action node '%s' does not contain the optional 'Number' node '%s'", msg, name)
+	an, ok := a.(*parser.JsonNumber)
+	if !ok {
+		return def, fmt.Errorf("action node '%s' optional %s node is not a Number node '%s'", msg, name)
 	}
-	return a.(*parser.JsonNumber).GetValue(), nil
+	return an.GetValue(), nil
 }
 
 func getListNode(node parser.NodeC, name string) (parser.NodeC, error) {
@@ -331,8 +362,8 @@ func getStringList(node parser.NodeC, name, msg string) ([]string, error) {
 	return resp, nil
 }
 
-func NewActionData(name string, desc string) *ActionData {
-	return &ActionData{name: name, desc: desc, commands: make([]*SingleAction, 0)}
+func NewActionData(name string, desc string, hide bool) *ActionData {
+	return &ActionData{name: name, desc: desc, hide: hide, commands: make([]*SingleAction, 0)}
 }
 
 func NewSingleAction(cmd string, args []string, input, outFile, outFilter, errFile string, delay float64) *SingleAction {

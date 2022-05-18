@@ -42,6 +42,7 @@ Full definition of all valid fields:
         {
             "name": "Start Code",
             "desc": "Start the dev environment",
+            "hide": false,
             "list": [
                 {
                     "cmd": "code",
@@ -59,6 +60,7 @@ Full definition of all valid fields:
 | ----------- | ----------- | --------- |
 | config | Contains global config data | optional |
 | config.showExit1 | true \| false Show the Close(1) button. App exit with return code | optional = false |
+| config.runAtStart | Run action at startup. If "" then no action is taken | optional = "" |
 | config.cachedFields | Contains a list of cached fields for substitution in args. See CachedFields below | optional |
 | actions | Contains All actions. See Actions below| mandatory |
 
@@ -105,6 +107,7 @@ Each individual action is defined as follows:
 ```json
 "name": "Start VSCode",
 "desc": "Start the dev environment",
+"hide": false
 "list": [
     {
         "cmd": "code",
@@ -120,17 +123,18 @@ Each individual action is defined as follows:
 ]
 ```
 
-| Field name      | Description | optional |
+| Field name | Description | optional |
 | ----------- | ----------- | --------- |
 | name | Defined the value displayed in the action button | required |
 | desc | Defined the value displayed along side the action button | required |
+| hide | if true will not display a button. Used with runAtStart | optional = false |
 | list | Defines a number of commands to be run one after the other | required |
 
-### Commands (cmd):
+### Commands (cmd)
 
 Each command has the following fields:
 
-| Field name      | Description | optional |
+| Field name | Description | optional |
 | ----------- | ----------- | --------- |
 | cmd | the command to be run (excluding any arguments). E.g. ls | required |
 | args | A String list of arguments. E.g. '-lta' See Agrs below | required |
@@ -179,6 +183,7 @@ The sysout from the command is optionally filtered  (see Out Filters below) and 
     }
 }
 ```
+
 If 'myvar' contains the text **'ready to'**.
 
 The result of the following:
@@ -201,21 +206,21 @@ echo ready to commit
 
 The 'outFile' parameter has multiple forms:
 
-| form      | Description |
+| form | Description |
 | ----------- | ----------- |
-| A_valid_file_name | The file will be deleted first, overwriting the previous content. Sysout will be written to the file. Only a single result will be written. | 
-| append:A_valid_file_name | The 'append:' prefix means Sysout will be appended to the file. | 
-| memory:aName | The 'memory:' prefix means Sysout will be written to the cache with the given name ('aName'). | 
+| A_valid_file_name | The file will be deleted first, overwriting the previous content. Sysout will be written to the file. Only a single result will be written. |
+| append:A_valid_file_name | The 'append:' prefix means Sysout will be appended to the file. |
+| memory:name_in_cache | The 'memory:' prefix means Sysout will be written to the cache with the name 'name_in_cache'. |
 
 ### Filters
 
 Filters can be applied to sysout (outFile) and sysin (in) as required.
 
-Two types of filters exist In Filters and Out Filters. They are defined slightly differently. 
+Two types of filters exist In Filters and Out Filters. They are defined slightly differently.
 
 ### Out Filters
 
-An outFilter filters the generated sysout text. This can be written to sysout (default), a file or to cache memory. 
+An outFilter filters the generated sysout text. This can be written to sysout (default), a file or to cache memory.
 
 For example:
 
@@ -271,6 +276,24 @@ See the test file 'main_test.go' for examples of filters and their returned valu
 | "outFilter":"0,,,, \|1,,,\n" | Line 0 is written followed by a ', ' followed by line 1 folllowed by a new line |
 
 ### In Filters
+
+The in filter is defined as part of the 'in' value fo the commands in an action list.
+
+| Example Without filters | Description |
+| ----------- | ----------- |
+| "input this value" | The sysin stream will return each char defined in the field |
+| "memory:xxy" | The sysin stream will be returned from the memory cache with the name 'xxy' |
+| "file:a/file.txt" | The sysin stream will be returned from the contents of the file 'a/file.txt' |
+
+In filters follow the memory cache name or the file name separated by the '|' character.
+
+The filters function in exactly the same way as the out filters. See above.
+
+| Example With filters | Description |
+| ----------- | ----------- |
+| "input this value" | This format cannot use a filter! |
+| "memory:xxy|filter1,=,1,:|filter2" | The sysin stream will be returned from the memory cache with the name 'xxy' filtered |
+| "file:a/file.txt|filter1,=,1,:|filter2" | The sysin stream will be returned from the contents of the file 'a/file.txt' filtered |
 
 ### CachedFields
 
