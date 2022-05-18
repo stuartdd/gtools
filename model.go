@@ -313,7 +313,7 @@ func getStringOptNode(node parser.NodeC, name, def, msg string) (string, error) 
 	}
 	as, ok := a.(*parser.JsonString)
 	if !ok {
-		return "", fmt.Errorf("action node '%s' optional %s node is not a String node '%s'", msg, name)
+		return "", fmt.Errorf("action node '%s' optional '%s' node is not a String node", msg, name)
 	}
 	return as.String(), nil
 }
@@ -325,7 +325,7 @@ func getBoolOptNode(node parser.NodeC, name string, def bool, msg string) (bool,
 	}
 	ab, ok := a.(*parser.JsonBool)
 	if !ok {
-		return def, fmt.Errorf("action node '%s' optional %s node is not a Boolean node '%s'", msg, name)
+		return def, fmt.Errorf("in action node '%s' optional '%s' node is not a Boolean node", msg, name)
 	}
 	return ab.GetValue(), nil
 }
@@ -337,7 +337,7 @@ func getNumberOptNode(node parser.NodeC, name, msg string, def float64) (float64
 	}
 	an, ok := a.(*parser.JsonNumber)
 	if !ok {
-		return def, fmt.Errorf("action node '%s' optional %s node is not a Number node '%s'", msg, name)
+		return def, fmt.Errorf("in action node '%s' optional '%s' node is not a Number node", msg, name)
 	}
 	return an.GetValue(), nil
 }

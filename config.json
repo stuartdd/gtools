@@ -91,7 +91,7 @@
             ]
         },
         {
-            "name": "Create push",
+            "name": "Create 'gitpush'",
             "desc": "Script for %{gituser}",
             "list": [
                 {
@@ -105,7 +105,7 @@
                 },
                 {
                     "cmd": "echo",
-                    "outFile": "gitpush.sh",
+                    "outFile": "gitpush",
                     "args": [
                         "gitpush.sh %{gituser} %{gitauth} &"
                     ]
@@ -114,19 +114,19 @@
                     "cmd": "chmod",
                     "args": [
                         "+x",
-                        "gitpush.sh"
+                        "gitpush"
                     ]
                 }
             ]
         },
         {
-            "name": "Remove push",
-            "desc": "Remove push script gitpush.sh",
+            "name": "Remove 'gitpush'",
+            "desc": "Remove push script 'gitpush'",
             "list": [
                 {
                     "cmd": "rm",
                     "args": [
-                        "gitpush.sh"
+                        "gitpush"
                     ]
                 }
             ]
@@ -134,6 +134,7 @@
         {
             "name": "Create Looper",
             "desc": "Run gtool exec gitpush.sh, loop",
+            "hide": true,
             "list": [
                 {
                     "cmd": "echo",
