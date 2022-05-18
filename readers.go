@@ -26,7 +26,7 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 		if len(parts) == 0 || len(parts[0]) == 0 {
 			return nil, fmt.Errorf("no cache entry after %s prefix of in parameter", CACHE_PREF)
 		}
-		cw := ReadCache(fn)
+		cw := ReadCache(parts[0])
 		if cw != nil {
 			filter := ""
 			if len(parts) > 1 {
