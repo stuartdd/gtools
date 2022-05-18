@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -10,16 +9,70 @@ import (
 var (
 	reader = strings.NewReader("012345678901234")
 	err    error
-
-	mr io.Reader
+	mr     io.Reader
 )
+
+func TestReaderDefault(t *testing.T) {
+	mr, err = NewStringReader("", reader)
+	if mr != reader || err != nil {
+		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
+		return
+	}
+	testRead(t, mr, 10, "0123456789", "Reader 1.0")
+	testRead(t, mr, 5, "01234", "Reader 1.1")
+	testRead(t, mr, 0, "", "Reader 1.2")
+}
+
+func TestReaderFile15(t *testing.T) {
+	mr, err = NewStringReader("file:test_data/readers_test_15.data", reader)
+	if err != nil {
+		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
+	}
+	testRead(t, mr, 10, "0123456789", "Reader 1.0")
+	testRead(t, mr, 5, "01234", "Reader 1.1")
+	testRead(t, mr, 0, "", "Reader 1.2")
+}
+
+func TestReaderCache15(t *testing.T) {
+	createCache(t, "cw15", "012345678901234")
+
+	mr, err = NewStringReader("memory:xxxx", reader)
+	if err == nil {
+		t.Fatalf("FAIL 001: Must throw an error if cache entry not found")
+	}
+	mr, err = NewStringReader("memory:cw15", reader)
+	if err != nil {
+		t.Fatalf("FAIL 001: Must NOT throw an error if cache entry is found :%s", err.Error())
+	}
+	testRead(t, mr, 10, "0123456789", "Reader 1.0")
+	testRead(t, mr, 5, "01234", "Reader 1.1")
+	testRead(t, mr, 0, "", "Reader 1.2")
+}
+
+func TestReaderDirect(t *testing.T) {
+	mr, err = NewStringReader("012345678901234", reader)
+	if err != nil {
+		t.Fatalf("FAIL 002: Should return nil not: %s", err.Error())
+	}
+	_, ok := mr.(*StringReader)
+	if !ok {
+		t.Errorf("FAIL 002: Should return a StringReader")
+	}
+	testRead(t, mr, 10, "0123456789", "Reader 2.0")
+	testRead(t, mr, 5, "01234", "Reader 2.1")
+	testRead(t, mr, 0, "", "Reader 2.2")
+}
 
 func testRead(t *testing.T, r io.Reader, expLen int, expStr string, info string) {
 	buf := make([]byte, 10)
 	l, err := r.Read(buf)
-	if err != nil {
+	if l == 0 && err.Error() != "EOF" {
+		t.Errorf("FAIL %s: Should return EOF if ret is 0", info)
+	}
+	if l != 0 && err != nil {
 		t.Errorf("FAIL %s: Should always retur nil err", info)
 	}
+
 	if l != expLen {
 		t.Errorf("FAIL %s: Expected len %d actual len %d", info, expLen, l)
 	}
@@ -29,54 +82,17 @@ func testRead(t *testing.T, r io.Reader, expLen int, expStr string, info string)
 	}
 }
 
-func TestFileReader(t *testing.T) {
-
-	mr, err = NewStringReader("", reader)
-	if mr != reader || err != nil {
-		t.Errorf("FAIL 001: Should return nil reader and error")
+func createCache(t *testing.T, name, content string) {
+	cw, err := NewCacheWriter(name, "")
+	if err != nil {
+		t.Fatalf("FAIL createCache: NewCacheWriter Should return nil not: %s", err.Error())
 	}
-	testRead(t, mr, 10, "0123456789", "Reader 1.0")
-	testRead(t, mr, 5, "01234", "Reader 1.1")
-
-	b := make([]byte, 3)
-	c, e := mr.Read(b)
-	if e != nil || string(b[0:c]) != "012" || c != 3 {
-		t.Errorf("FAIL: %d %s\n", c, string(b[0:c]))
+	l, err := cw.Write([]byte(content))
+	if err != nil {
+		t.Fatalf("FAIL createCache: Write Should return nil not: %s", err.Error())
 	}
-	c, e = mr.Read(b)
-	if e != nil || string(b[0:c]) != "345" || c != 3 {
-		t.Errorf("FAIL: %d %s\n", c, string(b[0:c]))
+	if l != len(content) {
+		t.Fatalf("FAIL createCache: Should write %d bytes not %d", len(content), l)
 	}
-	c, e = mr.Read(b)
-	if e != nil || string(b[0:c]) != "6" || c != 1 {
-		t.Errorf("FAIL: %d %s\n", c, b[0:c])
-	}
-	c, e = mr.Read(b)
-	if e == nil || string(b[0:c]) != "" || c != 0 {
-		t.Errorf("FAIL: %d %s\n", c, string(b[0:c]))
-	}
-}
-
-func TestLineReader(t *testing.T) {
-	mr, _ := NewStringReader("012\n34\n56", nil)
-	b := make([]byte, 10)
-	c, e := mr.Read(b)
-	s := string(b[0:c])
-	fmt.Printf("%s", s)
-	if e != nil || s != "012\n" || c != 4 {
-		t.Errorf("FAIL: %d '%s'\n", c, s)
-	}
-	c, e = mr.Read(b)
-	s = string(b[0:c])
-	fmt.Printf("%s", s)
-	if e != nil || s != "34\n" || c != 3 {
-		t.Errorf("FAIL: %d '%s'\n", c, s)
-	}
-	c, e = mr.Read(b)
-	s = string(b[0:c])
-	fmt.Printf("%s", s)
-	if e != nil || s != "56" || c != 2 {
-		t.Errorf("FAIL: %d '%s'\n", c, s)
-	}
-
+	WriteCache(cw)
 }

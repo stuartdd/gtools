@@ -24,9 +24,9 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 	if found {
 		parts := strings.SplitN(fn, "|", 1)
 		if len(parts) == 0 || len(parts[0]) == 0 {
-			return nil, fmt.Errorf("could not locate file name after %s prefix of in parameter", CACHE_PREF)
+			return nil, fmt.Errorf("no cache entry after %s prefix of in parameter", CACHE_PREF)
 		}
-		cw := ReadCache(parts[0])
+		cw := ReadCache(fn)
 		if cw != nil {
 			filter := ""
 			if len(parts) > 1 {
@@ -37,6 +37,8 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 				return nil, err
 			}
 			return &StringReader{resp: string(resp), delayMs: 0}, nil
+		} else {
+			return nil, fmt.Errorf("could not locate cache entry for in parameter %s.%s", CACHE_PREF, parts[0])
 		}
 	}
 

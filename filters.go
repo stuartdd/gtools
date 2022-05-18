@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -59,41 +58,6 @@ func parseSelectArgs(args []string, desc string) ([]*Select, error) {
 	return sels, nil
 }
 
-func selectFromFileWithArgs(fileName string, args []string, desc string) (string, error) {
-	dat, err := os.ReadFile(fileName)
-	if err != nil {
-		return "", fmt.Errorf("failed to load file '%s' from file input definition '%s'", fileName, desc)
-	}
-	selectList, err := parseSelectArgs(args, desc)
-	if err != nil {
-		return "", err
-	}
-	var sb strings.Builder
-	scanner := bufio.NewScanner(strings.NewReader(string(dat)))
-	line := 0
-	for scanner.Scan() {
-		selectLineWithArgs(selectList, line, scanner.Text(), &sb)
-	}
-	return sb.String(), nil
-}
-
-func selectWithArgs(args []string, in string, desc string) (string, error) {
-	if len(args) == 0 {
-		return in, nil
-	}
-	selectList, err := parseSelectArgs(args, desc)
-	if err != nil {
-		return "", err
-	}
-	var sb strings.Builder
-	scanner := bufio.NewScanner(strings.NewReader(in))
-	line := 0
-	for scanner.Scan() {
-		selectLineWithArgs(selectList, line, scanner.Text(), &sb)
-	}
-	return sb.String(), nil
-}
-
 func selectLineWithArgs(args []*Select, ln int, line string, sb *strings.Builder) {
 	for _, s := range args {
 		if ln == s.line || (s.line == -1 && s.contains != "" && strings.Contains(line, s.contains)) {
@@ -112,6 +76,9 @@ func selectLineWithArgs(args []*Select, ln int, line string, sb *strings.Builder
 }
 
 func Filter(input []byte, filter string) ([]byte, error) {
+	if filter == "" {
+		return input, nil
+	}
 	parts := strings.Split(filter, "|")
 	selectList, err := parseSelectArgs(parts, "")
 	if err != nil {

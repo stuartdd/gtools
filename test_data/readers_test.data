@@ -1,0 +1,14 @@
+filesystem.Azul Systems, Inc.|13.0.3|/dev/nvme0n1p5.timestampresolution=8000 nanoseconds
+filesystem.Azul Systems, Inc.|13.0.3|/dev/nvme0n1p5.minracythreshold=5497 microseconds
+user.email=stuart.d.davies@btinternet.com
+user.name=stuartdd
+core.autocrlf=input
+gui.recentrepo=/home/stuart/git/golang/enctest
+core.repositoryformatversion=0
+core.filemode=true
+core.bare=false
+core.logallrefupdates=true
+remote.origin.url=https://github.com/stuartdd/gtools.git
+remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+branch.main.remote=origin
+branch.main.merge=refs/heads/main
