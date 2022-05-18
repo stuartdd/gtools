@@ -12,6 +12,16 @@ var (
 	mr     io.Reader
 )
 
+func TestReaderDefaultFilter(t *testing.T) {
+	mr, err = NewStringReader("file:test_data/readers_test.data|user.", reader)
+	if err != nil {
+		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
+	}
+	testRead(t, mr, 10, "0123456789", "Reader 1.0")
+	testRead(t, mr, 5, "01234", "Reader 1.1")
+	testRead(t, mr, 0, "", "Reader 1.2")
+}
+
 func TestReaderDefault(t *testing.T) {
 	mr, err = NewStringReader("", reader)
 	if mr != reader || err != nil {

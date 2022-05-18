@@ -22,7 +22,7 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 
 	fn, found := PrefixMatch(selectFrom, CACHE_PREF)
 	if found {
-		parts := strings.SplitN(fn, "|", 1)
+		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
 			return nil, fmt.Errorf("no cache entry after %s prefix of in parameter", CACHE_PREF)
 		}
@@ -44,7 +44,7 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 
 	fn, found = PrefixMatch(selectFrom, FILE_PREF)
 	if found {
-		parts := strings.SplitN(fn, "|", 1)
+		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
 			return nil, fmt.Errorf("could not locate file name after %s prefix of in parameter", CACHE_PREF)
 		}
