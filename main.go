@@ -49,13 +49,21 @@ func main() {
 		exitApp(err.Error(), 1)
 	}
 	if RunAtStart != "" {
+		runAtStart()
+	}
+	gui()
+}
+
+func runAtStart() {
+	go func() {
+		time.Sleep(4 * time.Second)
 		action, err := model.GetActionDataForName(RunAtStart)
 		if err != nil {
 			exitApp(err.Error(), 1)
 		}
 		execMultipleAction(action)
-	}
-	gui()
+		update()
+	}()
 }
 
 func gui() {
