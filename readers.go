@@ -20,11 +20,11 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 		return defaultIn, nil
 	}
 
-	fn, found := PrefixMatch(selectFrom, CACHE_PREF)
+	fn, typ, found := PrefixMatch(selectFrom, CACHE_PREF)
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
-			return nil, fmt.Errorf("no cache entry after %s prefix of in parameter", CACHE_PREF)
+			return nil, fmt.Errorf("no cache entry after %s prefix of in parameter", typ)
 		}
 		cw := ReadCache(parts[0])
 		if cw != nil {
@@ -38,15 +38,15 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 			}
 			return &StringReader{resp: string(resp), delayMs: 0}, nil
 		} else {
-			return nil, fmt.Errorf("could not locate cache entry for in parameter %s.%s", CACHE_PREF, parts[0])
+			return nil, fmt.Errorf("could not locate cache entry for in parameter %s.%s", typ, parts[0])
 		}
 	}
 
-	fn, found = PrefixMatch(selectFrom, FILE_PREF)
+	fn, typ, found = PrefixMatch(selectFrom, FILE_PREF)
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
-			return nil, fmt.Errorf("could not locate file name after %s prefix of in parameter", CACHE_PREF)
+			return nil, fmt.Errorf("could not locate file name after %s prefix of in parameter", typ)
 		}
 		data, err := readFile(parts[0])
 		if err != nil {

@@ -14,6 +14,7 @@ const (
 	STD_IN  = 2
 
 	FILE_APPEND_PREF = "append:"
+	CLIP_PREF        = "clip:"
 	CACHE_PREF       = "memory:"
 	FILE_PREF        = "file:"
 )

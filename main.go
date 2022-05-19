@@ -234,6 +234,12 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 	if sa.delay > 0.0 {
 		time.Sleep(time.Duration(sa.delay) * time.Millisecond)
 	}
+	cp, ok := so.(ClipContent)
+	if ok {
+		if cp.shouldClip() {
+			mainWindow.Clipboard().SetContent(cp.getContent())
+		}
+	}
 	return nil
 }
 

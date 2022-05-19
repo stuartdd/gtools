@@ -23,7 +23,7 @@
                         "-l"
                     ],
                     "outFilter": "user.name,=,1",
-                    "outFile": "memory:gituser"
+                    "outFile": "clip:gituser"
                 },
                 {
                     "cmd": "clear",

@@ -13,6 +13,11 @@ type Reset interface {
 	Reset()
 }
 
+type ClipContent interface {
+	shouldClip() bool
+	getContent() string
+}
+
 type BaseWriter struct {
 	prefix string
 	filter string
@@ -28,10 +33,11 @@ type FileWriter struct {
 }
 
 type CacheWriter struct {
-	name   string
-	filter string
-	desc   string
-	sb     strings.Builder
+	name     string
+	filter   string
+	desc     string
+	copyClip bool
+	sb       strings.Builder
 }
 
 func NewBaseWriter(filter string, prefix string) *BaseWriter {
@@ -50,12 +56,12 @@ func (mw *BaseWriter) Write(p []byte) (n int, err error) {
 	return pLen, nil
 }
 
-func NewCacheWriter(name, filter string) (*CacheWriter, error) {
+func NewCacheWriter(name, filter string, copyClip bool) (*CacheWriter, error) {
 	if name == "" {
 		return nil, fmt.Errorf("memory writer must have a name")
 	}
 	var sb strings.Builder
-	cw := &CacheWriter{name: name, filter: filter, desc: "", sb: sb}
+	cw := &CacheWriter{name: name, filter: filter, copyClip: copyClip, desc: "", sb: sb}
 	return cw, nil
 }
 
@@ -74,15 +80,23 @@ func (cw *CacheWriter) Write(p []byte) (n int, err error) {
 	return pLen, nil
 }
 
+func (cw *CacheWriter) getContent() string {
+	return cw.sb.String()
+}
+
+func (cw *CacheWriter) shouldClip() bool {
+	return cw.copyClip
+}
+
 func (cw *CacheWriter) Reset() {
 	cw.sb.Reset()
 }
 
-func PrefixMatch(s string, pref string) (string, bool) {
+func PrefixMatch(s string, pref string) (string, string, bool) {
 	if len(s) > len(pref) && strings.ToLower(s)[0:len(pref)] == pref {
-		return s[len(pref):], true
+		return s[len(pref):], pref, true
 	}
-	return s, false
+	return s, "", false
 }
 
 func NewWriter(fileName, filter string, defaultOut, stdErr *BaseWriter) io.Writer {
@@ -95,13 +109,16 @@ func NewWriter(fileName, filter string, defaultOut, stdErr *BaseWriter) io.Write
 	var err error
 	var fn string
 
-	fn, found := PrefixMatch(fileName, CACHE_PREF)
+	fn, typ, found := PrefixMatch(fileName, CLIP_PREF)
+	if !found {
+		fn, typ, found = PrefixMatch(fileName, CACHE_PREF)
+	}
 	if found {
 		cw := ReadCache(fn)
 		if cw == nil {
-			cw, err = NewCacheWriter(fn, filter)
+			cw, err = NewCacheWriter(fn, filter, typ == CLIP_PREF)
 			if err != nil {
-				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CACHE_PREF, fn, err.Error())))
+				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", typ, fn, err.Error())))
 				return defaultOut
 			}
 			WriteCache(cw)
@@ -110,7 +127,7 @@ func NewWriter(fileName, filter string, defaultOut, stdErr *BaseWriter) io.Write
 	}
 
 	var f *os.File
-	fn, found = PrefixMatch(fileName, FILE_APPEND_PREF)
+	fn, _, found = PrefixMatch(fileName, FILE_APPEND_PREF)
 	if found {
 		f, err = os.OpenFile(fn, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	} else {
