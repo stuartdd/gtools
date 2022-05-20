@@ -56,7 +56,7 @@ func main() {
 
 func runAtStart() {
 	go func() {
-		time.Sleep(4 * time.Second)
+		time.Sleep(time.Second)
 		action, err := model.GetActionDataForName(RunAtStart)
 		if err != nil {
 			exitApp(err.Error(), 1)

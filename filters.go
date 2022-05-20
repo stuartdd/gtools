@@ -15,6 +15,37 @@ type Select struct {
 	suffix   string
 }
 
+func ParseFilter(a string) ([]string, error) {
+	res := make([]string, 0)
+	var sb strings.Builder
+	var inQuote = false
+	for _, c := range a {
+		if sb.Len() == 0 && c == '\'' {
+			inQuote = true
+		} else {
+			if inQuote {
+				if c == '\'' {
+					inQuote = false
+				} else {
+					sb.WriteByte(byte(c))
+				}
+			} else {
+				if c == ',' {
+					res = append(res, sb.String())
+					sb.Reset()
+				} else {
+					sb.WriteByte(byte(c))
+				}
+			}
+		}
+	}
+	if inQuote {
+		return nil, fmt.Errorf("uneven quoted value in [%s]", a)
+	}
+	res = append(res, sb.String())
+	return res, nil
+}
+
 func newSelect(a string, desc string) (*Select, error) {
 	var line int = -1
 	var contains string = ""
@@ -23,7 +54,10 @@ func newSelect(a string, desc string) (*Select, error) {
 	var suffix string = ""
 	var err error = nil
 
-	ap := strings.Split(a, ",")
+	ap, err := ParseFilter(a)
+	if err != nil {
+		return nil, fmt.Errorf("parsing failed for filter: '%s'", err.Error())
+	}
 	if len(ap) > 0 {
 		line, err = strconv.Atoi(ap[0])
 		if err != nil {
@@ -37,11 +71,14 @@ func newSelect(a string, desc string) (*Select, error) {
 	if len(ap) > 2 && ap[2] != "" {
 		ind, err = strconv.Atoi(ap[2])
 		if err != nil {
-			return nil, fmt.Errorf("string to int conversion failed for selection '%s' element '%s'", desc, ap[0])
+			return nil, fmt.Errorf("string to int conversion failed for filter '%s' element '%s'", desc, ap[0])
 		}
 	}
 	if len(ap) > 3 {
-		suffix = a[len(ap[0])+len(ap[1])+len(ap[2])+3:]
+		suffix = ap[3]
+	}
+	if len(ap) > 4 {
+		return nil, fmt.Errorf("too many parts to filter element '%s'", a)
 	}
 	return &Select{line: line, contains: contains, delim: delim, index: ind, suffix: suffix}, nil
 }

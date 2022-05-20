@@ -7,13 +7,14 @@
                 "default": "commit",
                 "input": true
             }
-        }
+        },
+        "runAtStart":"Git details"   
     },
     "actions": [
         {
             "name": "Git details",
             "desc": "Check local files",
-            "hide": false,
+            "hide": true,
             "list": [
                 {
                     "cmd": "git",
@@ -21,7 +22,7 @@
                         "config",
                         "-l"
                     ],
-                    "outFile": "|user.name,=,1"
+                    "outFile": "memory:gituser|user.name,=,1"
                 }
             ]
         },
