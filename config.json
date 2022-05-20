@@ -8,7 +8,8 @@
                 "input": true
             }
         },
-        "runAtStart":"Git details"
+        "runAtStart":"Git details",
+        "runAtEnd":"Remove 'gitpush'"
     },
     "actions": [
         {
@@ -23,6 +24,10 @@
                         "-l"
                     ],
                     "outFile": "memory:gituser|user.name,=,1"
+                },
+                {
+                    "cmd": "sleep",
+                    "args": ["5"]
                 }
             ]
         },
@@ -45,6 +50,10 @@
                 {
                     "cmd": "clear",
                     "args": []
+                },
+                {
+                    "cmd": "sleep",
+                    "args": ["5"]
                 },
                 {
                     "cmd": "git",
@@ -117,7 +126,7 @@
                 {
                     "cmd": "rm",
                     "args": [
-                        "gitpush"
+                        "-f", "gitpush"
                     ]
                 }
             ]

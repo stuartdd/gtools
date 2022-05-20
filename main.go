@@ -22,9 +22,11 @@ const (
 )
 
 var (
-	stdColourPrefix = []string{GREEN, RED}
-	mainWindow      fyne.Window
-	model           *Model
+	stdColourPrefix    = []string{GREEN, RED}
+	mainWindow         fyne.Window
+	model              *Model
+	actionRunning      bool = false
+	actionRunningLabel *widget.Label
 )
 
 type ActionButton struct {
@@ -48,6 +50,12 @@ func main() {
 	if err != nil {
 		exitApp(err.Error(), 1)
 	}
+	if RunAtEnd != "" {
+		_, err := model.GetActionDataForName(RunAtEnd)
+		if err != nil {
+			exitApp(fmt.Sprintf("RunAtEnd: %s", err.Error()), 1)
+		}
+	}
 	if RunAtStart != "" {
 		runAtStart()
 	}
@@ -55,12 +63,12 @@ func main() {
 }
 
 func runAtStart() {
+	action, err := model.GetActionDataForName(RunAtStart)
+	if err != nil {
+		exitApp(fmt.Sprintf("RunAtStart: %s", err.Error()), 1)
+	}
 	go func() {
 		time.Sleep(time.Second)
-		action, err := model.GetActionDataForName(RunAtStart)
-		if err != nil {
-			exitApp(err.Error(), 1)
-		}
 		execMultipleAction(action)
 		go func() {
 			time.Sleep(time.Second)
@@ -109,7 +117,9 @@ func centerPanel() *fyne.Container {
 		if !l.hide {
 			hp := container.NewHBox()
 			btn := newActionButton(l.name, theme.SettingsIcon(), func(action *ActionData) {
-				execMultipleAction(action)
+				if !actionRunning {
+					go execMultipleAction(action)
+				}
 			}, l)
 			hp.Add(btn)
 			hp.Add(widget.NewLabel(MutateStringFromMemCache(l.desc)))
@@ -138,7 +148,18 @@ func buttonBar(exec func(string, string, string)) *fyne.Container {
 			go update()
 		}
 	}))
+	actionRunningLabel = widget.NewLabel("")
+	bb.Add(actionRunningLabel)
 	return bb
+}
+
+func setActionRunning(newState bool, name string) {
+	actionRunning = newState
+	if actionRunning {
+		actionRunningLabel.SetText(fmt.Sprintf("Running '%s'", name))
+	} else {
+		actionRunningLabel.SetText("")
+	}
 }
 
 func action(exec, data1, data2 string) {
@@ -176,23 +197,23 @@ func entryDialog(desc, value string) (string, error) {
 }
 
 func execMultipleAction(data *ActionData) {
+	setActionRunning(true, data.name)
+	defer setActionRunning(false, "")
 	model.ResetCacheValues()
 	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
 	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
-	go func() {
-		for _, act := range data.commands {
-			err := execSingleAction(act, stdOut, stdErr)
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-			if act.err != nil {
-				stdErr.Write([]byte(act.err.Error()))
-				stdErr.Write([]byte("\n"))
-				return
-			}
+	for _, act := range data.commands {
+		err := execSingleAction(act, stdOut, stdErr)
+		if err != nil {
+			fmt.Println(err.Error())
+			return
 		}
-	}()
+		if act.err != nil {
+			stdErr.Write([]byte(act.err.Error()))
+			stdErr.Write([]byte("\n"))
+			return
+		}
+	}
 }
 
 func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
@@ -255,6 +276,13 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 }
 
 func actionClose(data string, code int) {
+	if RunAtEnd != "" {
+		action, err := model.GetActionDataForName(RunAtEnd)
+		if err != nil {
+			exitApp(err.Error(), 1)
+		}
+		execMultipleAction(action)
+	}
 	mainWindow.Close()
 	exitApp(data, code)
 }

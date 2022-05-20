@@ -23,9 +23,11 @@ var (
 	actionsPrefName          = parser.NewDotPath("actions")
 	showExit1PrefName        = parser.NewDotPath("config.showExit1")
 	runAtStartPrefName       = parser.NewDotPath("config.runAtStart")
+	runAtEndPrefName         = parser.NewDotPath("config.runAtEnd")
 	cacheInputFieldsPrefName = parser.NewDotPath("config.cachedFields")
 	ShowExit1                = false
 	RunAtStart               = ""
+	RunAtEnd                 = ""
 )
 
 type InputValue struct {
@@ -79,6 +81,7 @@ func NewModelFromFile(fileName string) (*Model, error) {
 	}
 	ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
 	RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
+	RunAtEnd = mod.getStringWithFallback(runAtEndPrefName, "")
 	return mod, nil
 }
 
@@ -88,7 +91,7 @@ func (m *Model) GetActionDataForName(name string) (*ActionData, error) {
 			return a, nil
 		}
 	}
-	return nil, fmt.Errorf("action data with name '%s' could not be found", name)
+	return nil, fmt.Errorf("action with name '%s' could not be found", name)
 }
 
 func (m *Model) LoadInputFields() error {
