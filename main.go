@@ -62,7 +62,10 @@ func runAtStart() {
 			exitApp(err.Error(), 1)
 		}
 		execMultipleAction(action)
-		update()
+		go func() {
+			time.Sleep(time.Second)
+			update()
+		}()
 	}()
 }
 

@@ -8,7 +8,7 @@
                 "input": true
             }
         },
-        "runAtStart":"Git details"   
+        "runAtStart":"Git details"
     },
     "actions": [
         {
