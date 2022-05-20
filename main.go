@@ -211,7 +211,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 		}
 		cmd.Stdin = si
 	}
-	so := NewWriter(sa.sysoutFile, sa.outFilter, stdOut, stdErr)
+	so := NewWriter(sa.sysoutFile, stdOut, stdErr)
 	soReset, reSoOk := so.(Reset)
 	if reSoOk {
 		soReset.Reset()
@@ -222,7 +222,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 	}
 	cmd.Stdout = so
 
-	se := NewWriter(sa.syserrFile, sa.outFilter, stdErr, stdErr)
+	se := NewWriter(sa.syserrFile, stdErr, stdErr)
 	seReset, reSeOk := se.(Reset)
 	if reSeOk {
 		seReset.Reset()

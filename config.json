@@ -7,14 +7,13 @@
                 "default": "commit",
                 "input": true
             }
-        },
-        "runAtStart": "Git details"
+        }
     },
     "actions": [
         {
             "name": "Git details",
             "desc": "Check local files",
-            "hide": true,
+            "hide": false,
             "list": [
                 {
                     "cmd": "git",
@@ -22,16 +21,7 @@
                         "config",
                         "-l"
                     ],
-                    "outFilter": "user.name,=,1",
-                    "outFile": "clip:gituser"
-                },
-                {
-                    "cmd": "clear",
-                    "args": []
-                },
-                {
-                    "cmd": "echo",
-                    "args": ["GTool started:"]
+                    "outFile": "|user.name,=,1"
                 }
             ]
         },

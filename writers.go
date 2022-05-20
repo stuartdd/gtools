@@ -35,13 +35,12 @@ type FileWriter struct {
 type CacheWriter struct {
 	name     string
 	filter   string
-	desc     string
 	copyClip bool
 	sb       strings.Builder
 }
 
 func NewBaseWriter(filter string, prefix string) *BaseWriter {
-	return &BaseWriter{filter: "", prefix: prefix}
+	return &BaseWriter{filter: filter, prefix: prefix}
 }
 
 func (mw *BaseWriter) Write(p []byte) (n int, err error) {
@@ -56,12 +55,13 @@ func (mw *BaseWriter) Write(p []byte) (n int, err error) {
 	return pLen, nil
 }
 
-func NewCacheWriter(name, filter string, copyClip bool) (*CacheWriter, error) {
-	if name == "" {
-		return nil, fmt.Errorf("memory writer must have a name")
+func NewCacheWriter(name string, copyClip bool) (*CacheWriter, error) {
+	cn, cf := splitNameFilter(name)
+	if cn == "" {
+		return nil, fmt.Errorf("memory (cache) writer must have a name")
 	}
 	var sb strings.Builder
-	cw := &CacheWriter{name: name, filter: filter, copyClip: copyClip, desc: "", sb: sb}
+	cw := &CacheWriter{name: cn, filter: cf, copyClip: copyClip, sb: sb}
 	return cw, nil
 }
 
@@ -99,8 +99,9 @@ func PrefixMatch(s string, pref string) (string, string, bool) {
 	return s, "", false
 }
 
-func NewWriter(fileName, filter string, defaultOut, stdErr *BaseWriter) io.Writer {
-	if fileName == "" {
+func NewWriter(outName string, defaultOut, stdErr *BaseWriter) io.Writer {
+	name, filter := splitNameFilter(outName)
+	if name == "" {
 		if filter == "" {
 			return defaultOut
 		}
@@ -109,14 +110,14 @@ func NewWriter(fileName, filter string, defaultOut, stdErr *BaseWriter) io.Write
 	var err error
 	var fn string
 
-	fn, typ, found := PrefixMatch(fileName, CLIP_PREF)
+	fn, typ, found := PrefixMatch(name, CLIP_PREF)
 	if !found {
-		fn, typ, found = PrefixMatch(fileName, CACHE_PREF)
+		fn, typ, found = PrefixMatch(name, CACHE_PREF)
 	}
 	if found {
 		cw := ReadCache(fn)
 		if cw == nil {
-			cw, err = NewCacheWriter(fn, filter, typ == CLIP_PREF)
+			cw, err = NewCacheWriter(fn+"|"+filter, typ == CLIP_PREF)
 			if err != nil {
 				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", typ, fn, err.Error())))
 				return defaultOut
@@ -127,7 +128,7 @@ func NewWriter(fileName, filter string, defaultOut, stdErr *BaseWriter) io.Write
 	}
 
 	var f *os.File
-	fn, _, found = PrefixMatch(fileName, FILE_APPEND_PREF)
+	fn, _, found = PrefixMatch(name, FILE_APPEND_PREF)
 	if found {
 		f, err = os.OpenFile(fn, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	} else {
@@ -166,4 +167,20 @@ func (fw *FileWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 	return fw.stdOut.Write(p)
+}
+
+func splitNameFilter(name string) (string, string) {
+	sn := strings.TrimLeft(name, " ")
+	if strings.HasPrefix(sn, "|") {
+		return "", sn[1:]
+	}
+	parts := strings.SplitN(sn, "|", 2)
+	switch len(parts) {
+	case 1:
+		return parts[0], ""
+	case 2:
+		return parts[0], parts[1]
+	default:
+		return "", ""
+	}
 }

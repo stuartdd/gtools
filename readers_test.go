@@ -132,7 +132,7 @@ func createCache(t *testing.T, fileName, name, content string) {
 	if err != nil {
 		t.Fatalf("failed to load file '%s' from file input definition", fileName)
 	}
-	cw, err := NewCacheWriter(name, "")
+	cw, err := NewCacheWriter(name, false)
 	if err != nil {
 		t.Fatalf("FAIL createCache: NewCacheWriter Should return nil not: %s", err.Error())
 	}

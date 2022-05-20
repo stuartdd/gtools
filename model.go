@@ -55,7 +55,6 @@ type SingleAction struct {
 	args       []string
 	sysin      string
 	sysoutFile string
-	outFilter  string
 	syserrFile string
 	err        error
 	delay      float64
@@ -191,10 +190,6 @@ func (m *Model) loadActions() error {
 			if err != nil {
 				return err
 			}
-			outFilter, err := getStringOptNode(cmdNode.(parser.NodeC), "outFilter", "", msg)
-			if err != nil {
-				return err
-			}
 			syserrFile, err := getStringOptNode(cmdNode.(parser.NodeC), "errFile", "", msg)
 			if err != nil {
 				return err
@@ -203,7 +198,7 @@ func (m *Model) loadActions() error {
 			if err != nil {
 				return err
 			}
-			actionData.AddSingleAction(cmd, data, in, sysoutFile, outFilter, syserrFile, delay)
+			actionData.AddSingleAction(cmd, data, in, sysoutFile, syserrFile, delay)
 		}
 		if actionData.len() == 0 {
 			return fmt.Errorf("no commands found in 'list' for action '%s' with name '%s'", msg, actionData.name)
@@ -367,12 +362,12 @@ func NewActionData(name string, desc string, hide bool) *ActionData {
 	return &ActionData{name: name, desc: desc, hide: hide, commands: make([]*SingleAction, 0)}
 }
 
-func NewSingleAction(cmd string, args []string, input, outFile, outFilter, errFile string, delay float64) *SingleAction {
-	return &SingleAction{command: cmd, args: args, sysin: input, sysoutFile: outFile, outFilter: outFilter, syserrFile: errFile, delay: delay}
+func NewSingleAction(cmd string, args []string, input, outFile, errFile string, delay float64) *SingleAction {
+	return &SingleAction{command: cmd, args: args, sysin: input, sysoutFile: outFile, syserrFile: errFile, delay: delay}
 }
 
-func (p *ActionData) AddSingleAction(cmd string, data []string, input, outFile, outFilter, errFile string, delay float64) {
-	sa := NewSingleAction(cmd, data, input, outFile, outFilter, errFile, delay)
+func (p *ActionData) AddSingleAction(cmd string, data []string, input, outFile, errFile string, delay float64) {
+	sa := NewSingleAction(cmd, data, input, outFile, errFile, delay)
 	p.commands = append(p.commands, sa)
 }
 
