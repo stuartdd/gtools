@@ -37,8 +37,14 @@ type ActionButton struct {
 
 func main() {
 	var err error
+	var path string
 	if len(os.Args) == 1 {
-		model, err = NewModelFromFile("gtool-config.json")
+		path, err = os.UserHomeDir()
+		if err != nil {
+			exitApp(err.Error(), 1)
+		}
+		path = path + string(os.PathSeparator) + "gtool-config.json"
+		model, err = NewModelFromFile(path)
 	} else {
 		model, err = NewModelFromFile(os.Args[1])
 	}
