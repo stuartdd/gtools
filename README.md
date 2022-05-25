@@ -10,7 +10,7 @@ execute as:
 ./gtool
 ```
 
-The default configuration file will be config.json
+The default configuration file will be gtool-config.json
 
 ```bash
 ./gtool myConfigFile.json

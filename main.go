@@ -38,7 +38,7 @@ type ActionButton struct {
 func main() {
 	var err error
 	if len(os.Args) == 1 {
-		model, err = NewModelFromFile("config.json")
+		model, err = NewModelFromFile("gtool-config.json")
 	} else {
 		model, err = NewModelFromFile(os.Args[1])
 	}
