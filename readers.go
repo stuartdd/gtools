@@ -20,11 +20,11 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 		return defaultIn, nil
 	}
 
-	fn, typ, found := PrefixMatch(selectFrom, MEMORY_PREF, MEM_TYPE)
+	fn, _, found := PrefixMatch(selectFrom, MEMORY_PREF, MEM_TYPE)
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
-			return nil, fmt.Errorf("no cache entry after %s prefix of in parameter", typ)
+			return nil, fmt.Errorf("no cache name after %s prefix of in parameter", MEMORY_PREF)
 		}
 		cw := ReadFromMemory(parts[0])
 		if cw != nil {
@@ -38,15 +38,15 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 			}
 			return &StringReader{resp: string(resp), delayMs: 0}, nil
 		} else {
-			return nil, fmt.Errorf("could not locate cache entry for in parameter %s.%s", ENUM_MEM_TYPE(typ), parts[0])
+			return nil, fmt.Errorf("could not locate cache entry for in parameter %s.%s", MEMORY_PREF, parts[0])
 		}
 	}
 
-	fn, typ, found = PrefixMatch(selectFrom, FILE_APPEND_PREF, FILE_TYPE)
+	fn, _, found = PrefixMatch(selectFrom, FILE_APPEND_PREF, FILE_TYPE)
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
-			return nil, fmt.Errorf("could not locate file name after %s prefix of in parameter", typ)
+			return nil, fmt.Errorf("could not locate file name after %s prefix of in parameter", FILE_APPEND_PREF)
 		}
 		data, err := readFile(parts[0])
 		if err != nil {

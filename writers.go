@@ -12,14 +12,14 @@ type ENUM_MEM_TYPE int
 const (
 	CLIP_TYPE ENUM_MEM_TYPE = iota
 	MEM_TYPE
-	ENC_TYPE
 	FILE_TYPE
+	ENC_TYPE
 
-	FILE_APPEND_PREF = "append:"    // Used with FileWriter to indicate an append to the file
-	CLIP_BOARD_PREF  = "clip:"      // Used with CacheWriter to indicate that the cache is written to the clipboard
-	MEMORY_PREF      = "memory:"    // Used to indicate that sysout or sysin will be written to cache
-	ENCRYPT_PREF     = "encrypted:" // Used to indicate that sysout or sysin will be written to
-	// cache and is already encrypted. Will require a pw when read fron cache
+	FILE_APPEND_PREF = "append:"  // Used with FileWriter to indicate an append to the file
+	CLIP_BOARD_PREF  = "clip:"    // Used with CacheWriter to indicate that the cache is written to the clipboard
+	MEMORY_PREF      = "memory:"  // Used to indicate that sysout or sysin will be written to cache
+	ENCRYPT_PREF     = "encrypt:" // Used to indicate that sysout or sysin will be written to cache. On close()
+	// the contents is encrypted and written to the file.
 )
 
 type Reset interface {
@@ -102,16 +102,23 @@ func (cw *CacheWriter) Write(p []byte) (n int, err error) {
 	return pLen, nil
 }
 
+func encrypt() error {
+	return nil
+}
+
+func (fw *CacheWriter) Close() error {
+	if fw.cacheType == ENC_TYPE {
+		encrypt()
+	}
+	return nil
+}
+
 func (cw *CacheWriter) GetContent() string {
 	return cw.sb.String()
 }
 
 func (cw *CacheWriter) ShouldClip() bool {
 	return cw.cacheType == CLIP_TYPE
-}
-
-func (cw *CacheWriter) ShouldDecrypt() bool {
-	return cw.cacheType == ENC_TYPE
 }
 
 func (cw *CacheWriter) Reset() {
@@ -133,8 +140,6 @@ func PrefixMatch(s string, pref string, typ ENUM_MEM_TYPE) (string, ENUM_MEM_TYP
 //   "outFile": "memory:name"   	Will write the output to the memory cache with the name 'name'
 //   "outFile": "clip:name"   		Will write the output to the memory cache with the name 'name'
 //									AND copy it to the clipboard
-//   "outFile": "encrypted:name"   	Will write the output to the memory cache with the name 'name'
-//									Reading from the cache will require a password to decrypt the data
 //
 func NewWriter(outName string, defaultOut, stdErr *BaseWriter) io.Writer {
 	name, filter := splitNameFilter(outName)
@@ -159,7 +164,7 @@ func NewWriter(outName string, defaultOut, stdErr *BaseWriter) io.Writer {
 		if cw == nil {
 			cw, err = NewCacheWriter(fn+"|"+filter, typ)
 			if err != nil {
-				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", typ, fn, err.Error())))
+				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
 				return defaultOut
 			}
 			WriteToMemory(cw)

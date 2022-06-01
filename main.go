@@ -131,11 +131,7 @@ func centerPanel() (*fyne.Container, error) {
 				}
 			}, l)
 			hp.Add(btn)
-			val, err := MutateStringFromMemCache(l.desc, entryDialog)
-			if err != nil {
-				return nil, err
-			}
-			hp.Add(widget.NewLabel(val))
+			hp.Add(widget.NewLabel(MutateStringFromMemCache(l.desc)))
 			vp.Add(hp)
 		}
 	}
@@ -236,11 +232,7 @@ func SubstituteValuesIntoStringList(s []string, entryDialog func(string, string)
 		if err != nil {
 			return nil, err
 		}
-		tmp, err = MutateStringFromMemCache(tmp, entryDialog)
-		if err != nil {
-			return nil, err
-		}
-		resp = append(resp, tmp)
+		resp = append(resp, MutateStringFromMemCache(tmp))
 	}
 	return resp, nil
 }

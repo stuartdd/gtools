@@ -19,22 +19,10 @@ func ReadFromMemory(name string) *CacheWriter {
 	return nil
 }
 
-func MutateStringFromMemCache(in string, getValue func(string, string) (string, error)) (string, error) {
+func MutateStringFromMemCache(in string) string {
 	out := in
-	var pwd string
-	var sub string
-	var err error
 	for n, v := range memoryMap {
-		if v.cacheType == ENC_TYPE {
-			pwd, err = getValue("Encrypted Value", "")
-			if err != nil {
-				return "", err
-			}
-			sub = pwd
-			out = strings.Replace(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(sub), -1)
-		} else {
-			out = strings.Replace(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(v.GetContent()), -1)
-		}
+		out = strings.ReplaceAll(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(v.GetContent()))
 	}
-	return out, nil
+	return out
 }
