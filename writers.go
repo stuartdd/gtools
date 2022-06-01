@@ -26,6 +26,11 @@ type Reset interface {
 	Reset()
 }
 
+type Encrypted interface {
+	ShouldEncrypt() bool
+	WriteToEncryptedFile(string) error
+}
+
 type ClipContent interface {
 	ShouldClip() bool
 	GetContent() string
@@ -102,13 +107,18 @@ func (cw *CacheWriter) Write(p []byte) (n int, err error) {
 	return pLen, nil
 }
 
-func encrypt() error {
-	return nil
-}
-
-func (fw *CacheWriter) Close() error {
-	if fw.cacheType == ENC_TYPE {
-		encrypt()
+func (cw *CacheWriter) WriteToEncryptedFile(key string) error {
+	d, err := EncryptData([]byte(key), []byte(cw.GetContent()))
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(cw.name)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(d)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -119,6 +129,10 @@ func (cw *CacheWriter) GetContent() string {
 
 func (cw *CacheWriter) ShouldClip() bool {
 	return cw.cacheType == CLIP_TYPE
+}
+
+func (cw *CacheWriter) ShouldEncrypt() bool {
+	return cw.cacheType == ENC_TYPE
 }
 
 func (cw *CacheWriter) Reset() {

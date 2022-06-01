@@ -291,6 +291,18 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 			mainWindow.Clipboard().SetContent(cp.GetContent())
 		}
 	}
+	ee, ok := se.(Encrypted)
+	if ok {
+		if ee.ShouldEncrypt() {
+			ee.WriteToEncryptedFile(model.values["password"].value)
+		}
+	}
+	ce, ok := so.(Encrypted)
+	if ok {
+		if ce.ShouldEncrypt() {
+			ee.WriteToEncryptedFile(model.values["password"].value)
+		}
+	}
 	return nil
 }
 
