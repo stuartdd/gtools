@@ -1,0 +1,42 @@
+{
+    "config": {
+        "showExit1": false,
+        "cachedFields": {
+            "commitMessage": {
+                "desc": "Commit message",
+                "default": "commit",
+                "input":true
+            },
+            "password1": {
+                "desc": "Passwprd",
+                "default": "",
+                "input":true
+            }
+        }
+    },
+    "actions": [
+        {
+            "name": "Write Enc",
+            "desc": "Write an encrypted file",
+            "list": [
+                {
+                    "cmd": "git",
+                    "outFile": "encFile.txt",
+                    "args": ["config", "-l"]
+                }
+            ]
+        },
+        {
+            "name": "Read Enc",
+            "desc": "Read an encrypted file",
+            "list": [
+                {
+                    "cmd": "cat",
+                    "args": [
+                        "encFile.txt"
+                    ]
+                }
+            ]
+        }
+    ]
+} 

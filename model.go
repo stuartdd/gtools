@@ -13,9 +13,6 @@ const (
 	STD_ERR = 1
 	STD_IN  = 2
 
-	FILE_APPEND_PREF = "append:"
-	CLIP_PREF        = "clip:"
-	CACHE_PREF       = "memory:"
 	FILE_PREF        = "file:"
 )
 
@@ -113,9 +110,6 @@ func (m *Model) LoadInputFields() error {
 			return fmt.Errorf("element '%s.%s.desc' in the config file '%s' not found or not a string", cacheInputFieldsPrefName, name, m.fileName)
 		}
 		defaultVal := m.getStringWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("default"), "")
-		if defaultVal == "" {
-			return fmt.Errorf("element '%s.%s.default' in the config file '%s' not found or not a string", cacheInputFieldsPrefName, name, m.fileName)
-		}
 		inputRequired := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("input"), false)
 		v := &InputValue{name: name, desc: desc, value: defaultVal, read: false, inputRequired: inputRequired}
 		m.values[name] = v

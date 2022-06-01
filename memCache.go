@@ -5,32 +5,36 @@ import (
 	"strings"
 )
 
-var outputCache = make(map[string]*CacheWriter, 10)
+var memoryMap = make(map[string]*CacheWriter, 10)
 
-func WriteCache(cw *CacheWriter) {
-	outputCache[cw.name] = cw
+func WriteToMemory(cw *CacheWriter) {
+	memoryMap[cw.name] = cw
 }
 
-func ReadCache(name string) *CacheWriter {
-	c, ok := outputCache[name]
+func ReadFromMemory(name string) *CacheWriter {
+	c, ok := memoryMap[name]
 	if ok {
 		return c
 	}
 	return nil
 }
 
-func MutateStringFromMemCache(in string) string {
+func MutateStringFromMemCache(in string, getValue func(string, string) (string, error)) (string, error) {
 	out := in
-	for n, v := range outputCache {
-		out = strings.Replace(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(v.sb.String()), -1)
+	var pwd string
+	var sub string
+	var err error
+	for n, v := range memoryMap {
+		if v.cacheType == ENC_TYPE {
+			pwd, err = getValue("Encrypted Value", "")
+			if err != nil {
+				return "", err
+			}
+			sub = pwd
+			out = strings.Replace(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(sub), -1)
+		} else {
+			out = strings.Replace(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(v.GetContent()), -1)
+		}
 	}
-	return out
-}
-
-func MutateListFromMemCache(in []string) []string {
-	out := make([]string, 0)
-	for _, a := range in {
-		out = append(out, MutateStringFromMemCache(a))
-	}
-	return out
+	return out, nil
 }

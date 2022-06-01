@@ -99,7 +99,10 @@ func gui() {
 
 func update() {
 	bb := buttonBar(action)
-	cp := centerPanel()
+	cp, err := centerPanel()
+	if err != nil {
+		return
+	}
 	c := container.NewBorder(bb, nil, nil, nil, cp)
 	mainWindow.SetContent(c)
 }
@@ -116,7 +119,7 @@ func newActionButton(label string, icon fyne.Resource, tapped func(action *Actio
 	return ab
 }
 
-func centerPanel() *fyne.Container {
+func centerPanel() (*fyne.Container, error) {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
 	for _, l := range model.actionList {
@@ -128,11 +131,15 @@ func centerPanel() *fyne.Container {
 				}
 			}, l)
 			hp.Add(btn)
-			hp.Add(widget.NewLabel(MutateStringFromMemCache(l.desc)))
+			val, err := MutateStringFromMemCache(l.desc, entryDialog)
+			if err != nil {
+				return nil, err
+			}
+			hp.Add(widget.NewLabel(val))
 			vp.Add(hp)
 		}
 	}
-	return vp
+	return vp, nil
 }
 
 func buttonBar(exec func(string, string, string)) *fyne.Container {
@@ -222,10 +229,24 @@ func execMultipleAction(data *ActionData) {
 	}
 }
 
+func SubstituteValuesIntoStringList(s []string, entryDialog func(string, string) (string, error)) ([]string, error) {
+	resp := make([]string, 0)
+	for _, v := range s {
+		tmp, err := model.MutateStringFromValues(v, entryDialog)
+		if err != nil {
+			return nil, err
+		}
+		tmp, err = MutateStringFromMemCache(tmp, entryDialog)
+		if err != nil {
+			return nil, err
+		}
+		resp = append(resp, tmp)
+	}
+	return resp, nil
+}
+
 func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
-	var err error = nil
-	args := MutateListFromMemCache(sa.args)
-	args, err = model.MutateListFromValues(args, entryDialog)
+	args, err := SubstituteValuesIntoStringList(sa.args, entryDialog)
 	if err != nil {
 		return err
 	}
@@ -274,8 +295,8 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 	}
 	cp, ok := so.(ClipContent)
 	if ok {
-		if cp.shouldClip() {
-			mainWindow.Clipboard().SetContent(cp.getContent())
+		if cp.ShouldClip() {
+			mainWindow.Clipboard().SetContent(cp.GetContent())
 		}
 	}
 	return nil

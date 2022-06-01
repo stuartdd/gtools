@@ -7,36 +7,58 @@ import (
 	"strings"
 )
 
-var ()
+type ENUM_MEM_TYPE int
+
+const (
+	CLIP_TYPE ENUM_MEM_TYPE = iota
+	MEM_TYPE
+	ENC_TYPE
+	FILE_TYPE
+
+	FILE_APPEND_PREF = "append:"    // Used with FileWriter to indicate an append to the file
+	CLIP_BOARD_PREF  = "clip:"      // Used with CacheWriter to indicate that the cache is written to the clipboard
+	MEMORY_PREF      = "memory:"    // Used to indicate that sysout or sysin will be written to cache
+	ENCRYPT_PREF     = "encrypted:" // Used to indicate that sysout or sysin will be written to
+	// cache and is already encrypted. Will require a pw when read fron cache
+)
 
 type Reset interface {
 	Reset()
 }
 
 type ClipContent interface {
-	shouldClip() bool
-	getContent() string
+	ShouldClip() bool
+	GetContent() string
 }
 
+//
+// Write stdout or stderr to stdout or stderr
+//
 type BaseWriter struct {
-	prefix string
-	filter string
+	prefix string //  prefix is prepended to any output line
+	filter string //  filter filters the lines written (see README.md)
 }
 
+//
+// Write stdout or stderr to a file
+//
 type FileWriter struct {
 	fileName string
-	filter   string
-	file     *os.File
-	canWrite bool
-	stdErr   *BaseWriter
-	stdOut   *BaseWriter
+	filter   string      //  filter filters the lines written (see README.md)
+	file     *os.File    // The file handle
+	canWrite bool        // flag indicates that io can be written to the file
+	stdErr   *BaseWriter // Used to report errors with file management
+	stdOut   *BaseWriter // Used if file io failed and cannot be written to
 }
 
+//
+// Write stdout or stderr to memory cache
+//
 type CacheWriter struct {
-	name     string
-	filter   string
-	copyClip bool
-	sb       strings.Builder
+	name      string          // Used as the name for the cache
+	filter    string          // filter filters the lines written (see README.md)
+	cacheType ENUM_MEM_TYPE   // Properties of the cache entry.
+	sb        strings.Builder // The text in the cache
 }
 
 func NewBaseWriter(filter string, prefix string) *BaseWriter {
@@ -55,13 +77,13 @@ func (mw *BaseWriter) Write(p []byte) (n int, err error) {
 	return pLen, nil
 }
 
-func NewCacheWriter(name string, copyClip bool) (*CacheWriter, error) {
+func NewCacheWriter(name string, cacheType ENUM_MEM_TYPE) (*CacheWriter, error) {
 	cn, cf := splitNameFilter(name)
 	if cn == "" {
 		return nil, fmt.Errorf("memory (cache) writer must have a name")
 	}
 	var sb strings.Builder
-	cw := &CacheWriter{name: cn, filter: cf, copyClip: copyClip, sb: sb}
+	cw := &CacheWriter{name: cn, filter: cf, cacheType: cacheType, sb: sb}
 	return cw, nil
 }
 
@@ -80,25 +102,40 @@ func (cw *CacheWriter) Write(p []byte) (n int, err error) {
 	return pLen, nil
 }
 
-func (cw *CacheWriter) getContent() string {
+func (cw *CacheWriter) GetContent() string {
 	return cw.sb.String()
 }
 
-func (cw *CacheWriter) shouldClip() bool {
-	return cw.copyClip
+func (cw *CacheWriter) ShouldClip() bool {
+	return cw.cacheType == CLIP_TYPE
+}
+
+func (cw *CacheWriter) ShouldDecrypt() bool {
+	return cw.cacheType == ENC_TYPE
 }
 
 func (cw *CacheWriter) Reset() {
 	cw.sb.Reset()
 }
 
-func PrefixMatch(s string, pref string) (string, string, bool) {
+func PrefixMatch(s string, pref string, typ ENUM_MEM_TYPE) (string, ENUM_MEM_TYPE, bool) {
 	if len(s) > len(pref) && strings.ToLower(s)[0:len(pref)] == pref {
-		return s[len(pref):], pref, true
+		return s[len(pref):], typ, true
 	}
-	return s, "", false
+	return s, typ, false
 }
 
+//
+// Writer takes stdout (outFile) or stderr (errFile) and writes it to the defined receiver.
+//
+//   "outFile": "fileName" 			Will create the file 'fileName' and stream the content in to it
+//   "outFile": "append:fileName"   Will append to the file 'fileName'. It will be created if required
+//   "outFile": "memory:name"   	Will write the output to the memory cache with the name 'name'
+//   "outFile": "clip:name"   		Will write the output to the memory cache with the name 'name'
+//									AND copy it to the clipboard
+//   "outFile": "encrypted:name"   	Will write the output to the memory cache with the name 'name'
+//									Reading from the cache will require a password to decrypt the data
+//
 func NewWriter(outName string, defaultOut, stdErr *BaseWriter) io.Writer {
 	name, filter := splitNameFilter(outName)
 	if name == "" {
@@ -110,25 +147,28 @@ func NewWriter(outName string, defaultOut, stdErr *BaseWriter) io.Writer {
 	var err error
 	var fn string
 
-	fn, typ, found := PrefixMatch(name, CLIP_PREF)
+	fn, typ, found := PrefixMatch(name, CLIP_BOARD_PREF, CLIP_TYPE)
 	if !found {
-		fn, typ, found = PrefixMatch(name, CACHE_PREF)
+		fn, typ, found = PrefixMatch(name, MEMORY_PREF, MEM_TYPE)
+		if !found {
+			fn, typ, found = PrefixMatch(name, ENCRYPT_PREF, ENC_TYPE)
+		}
 	}
 	if found {
-		cw := ReadCache(fn)
+		cw := ReadFromMemory(fn)
 		if cw == nil {
-			cw, err = NewCacheWriter(fn+"|"+filter, typ == CLIP_PREF)
+			cw, err = NewCacheWriter(fn+"|"+filter, typ)
 			if err != nil {
 				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", typ, fn, err.Error())))
 				return defaultOut
 			}
-			WriteCache(cw)
+			WriteToMemory(cw)
 		}
 		return cw
 	}
 
 	var f *os.File
-	fn, _, found = PrefixMatch(name, FILE_APPEND_PREF)
+	fn, _, found = PrefixMatch(name, FILE_APPEND_PREF, FILE_TYPE)
 	if found {
 		f, err = os.OpenFile(fn, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 	} else {
