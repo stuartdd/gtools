@@ -1,16 +1,18 @@
 {
     "config": {
         "showExit1": false,
-        "cachedFields": {
+        "localValues": {
             "commitMessage": {
                 "desc": "Commit message",
-                "default": "commit",
-                "input":true
+                "value": "commit",
+                "input": true
             },
             "password1": {
                 "desc": "Password",
-                "default": "",
-                "input":true
+                "input": true,
+                "value": "abc",
+                "minLen": 8,
+                "isPassword": true
             }
         }
     },
@@ -20,9 +22,25 @@
             "desc": "Write an encrypted file",
             "list": [
                 {
+                    "cmd": "echo",
+                    "args": [
+                        "Pw IN %{password1}"
+                    ]
+                },
+                {
                     "cmd": "git",
                     "outFile": "encFile.txt",
-                    "args": ["config", "-l"]
+                    "args": [
+                        "config",
+                        "-l"
+                    ],
+                    "outPwName": "password1"
+                },
+                {
+                    "cmd": "echo",
+                    "args": [
+                        "Pw AFTER %{password1}"
+                    ]
                 }
             ]
         },
@@ -39,4 +57,4 @@
             ]
         }
     ]
-} 
+}

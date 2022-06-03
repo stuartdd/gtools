@@ -12,8 +12,6 @@ const (
 	STD_OUT = 0
 	STD_ERR = 1
 	STD_IN  = 2
-
-	FILE_PREF        = "file:"
 )
 
 var (
@@ -21,7 +19,7 @@ var (
 	showExit1PrefName        = parser.NewDotPath("config.showExit1")
 	runAtStartPrefName       = parser.NewDotPath("config.runAtStart")
 	runAtEndPrefName         = parser.NewDotPath("config.runAtEnd")
-	cacheInputFieldsPrefName = parser.NewDotPath("config.cachedFields")
+	cacheInputFieldsPrefName = parser.NewDotPath("config.localValues")
 	ShowExit1                = false
 	RunAtStart               = ""
 	RunAtEnd                 = ""
@@ -31,7 +29,9 @@ type InputValue struct {
 	name          string
 	desc          string
 	value         string
-	read          bool
+	minLen        int
+	isPassword    bool
+	inputDone     bool
 	inputRequired bool
 }
 
@@ -53,6 +53,7 @@ type SingleAction struct {
 	command    string
 	args       []string
 	sysin      string
+	outPwName  string
 	sysoutFile string
 	syserrFile string
 	err        error
@@ -72,6 +73,10 @@ func NewModelFromFile(fileName string) (*Model, error) {
 		return nil, err
 	}
 	mod := &Model{fileName: fileName, root: configData, actionList: make([]*ActionData, 0), values: make(map[string]*InputValue)}
+	err = mod.loadInputFields()
+	if err != nil {
+		return nil, err
+	}
 	err = mod.loadActions()
 	if err != nil {
 		return nil, err
@@ -91,7 +96,7 @@ func (m *Model) GetActionDataForName(name string) (*ActionData, error) {
 	return nil, fmt.Errorf("action with name '%s' could not be found", name)
 }
 
-func (m *Model) LoadInputFields() error {
+func (m *Model) loadInputFields() error {
 	n, err := parser.Find(m.root, cacheInputFieldsPrefName)
 	if err != nil || n == nil {
 		return nil
@@ -109,9 +114,11 @@ func (m *Model) LoadInputFields() error {
 		if desc == "" {
 			return fmt.Errorf("element '%s.%s.desc' in the config file '%s' not found or not a string", cacheInputFieldsPrefName, name, m.fileName)
 		}
-		defaultVal := m.getStringWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("default"), "")
+		defaultVal := m.getStringWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("value"), "")
 		inputRequired := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("input"), false)
-		v := &InputValue{name: name, desc: desc, value: defaultVal, read: false, inputRequired: inputRequired}
+		minLen := m.getIntWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("minLen"), 1)
+		isPassword := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("isPassword"), false)
+		v := &InputValue{name: name, desc: desc, value: defaultVal, minLen: minLen, isPassword: isPassword, inputDone: false, inputRequired: inputRequired}
 		m.values[name] = v
 	}
 	return nil
@@ -191,11 +198,24 @@ func (m *Model) loadActions() error {
 			if err != nil {
 				return err
 			}
-			delay, err := getNumberOptNode(cmdNode.(parser.NodeC), "delay", msg, 0.0)
+			delay, err := getNumberOptNode(cmdNode.(parser.NodeC), "delay", 0.0, msg)
 			if err != nil {
 				return err
 			}
-			actionData.AddSingleAction(cmd, data, in, sysoutFile, syserrFile, delay)
+			outPwName, err := getStringOptNode(cmdNode.(parser.NodeC), "outPwName", "", msg)
+			if err != nil {
+				return err
+			}
+			if outPwName != "" {
+				_, found := m.values[outPwName]
+				if !found {
+					return fmt.Errorf("in %s. 'outPwName=%s' was not found in config.cachedFields", msg, outPwName)
+				}
+				if invalidOutFileNameForPw(sysoutFile) {
+					return fmt.Errorf("in %s. using 'outPwName=%s' without 'outFile' defined as a file", msg, outPwName)
+				}
+			}
+			actionData.AddSingleAction(cmd, data, in, outPwName, sysoutFile, syserrFile, delay)
 		}
 		if actionData.len() == 0 {
 			return fmt.Errorf("no commands found in 'list' for action '%s' with name '%s'", msg, actionData.name)
@@ -207,38 +227,35 @@ func (m *Model) loadActions() error {
 	return nil
 }
 
+func invalidOutFileNameForPw(n string) bool {
+	return n == "" ||
+		strings.HasPrefix(n, FILE_APPEND_PREF) ||
+		strings.HasPrefix(n, CLIP_BOARD_PREF) ||
+		strings.HasPrefix(n, MEMORY_PREF)
+}
+
 func (m *Model) len() int {
 	return len(m.actionList)
 }
 
-func (m *Model) ResetCacheValues() {
-	for _, v := range m.values {
-		v.read = false
-	}
-}
-
-func (m *Model) MutateStringFromValues(in string, getValue func(string, string) (string, error)) (string, error) {
+func (m *Model) MutateStringFromValues(in string, getValue func(*InputValue) error) (string, error) {
 	out := in
 	for n, v := range m.values {
 		rep := fmt.Sprintf("%%{%s}", n)
 		if strings.Contains(in, rep) {
-			if !v.read && v.inputRequired {
-				value, err := getValue(v.desc, v.value)
+			if !v.inputDone && v.inputRequired {
+				err := getValue(v)
 				if err != nil {
 					return "", err
 				}
-				out = strings.Replace(out, rep, strings.TrimSpace(value), -1)
-				v.read = true
-				v.value = value
-			} else {
-				out = strings.Replace(out, rep, strings.TrimSpace(v.value), -1)
 			}
+			out = strings.Replace(out, rep, strings.TrimSpace(v.value), -1)
 		}
 	}
 	return out, nil
 }
 
-func (m *Model) MutateListFromValues(in []string, getValue func(string, string) (string, error)) ([]string, error) {
+func (m *Model) MutateListFromValues(in []string, getValue func(*InputValue) error) ([]string, error) {
 	out := make([]string, 0)
 	for _, a := range in {
 		val, err := m.MutateStringFromValues(a, getValue)
@@ -261,6 +278,20 @@ func (m *Model) getStringWithFallback(p *parser.Path, fb string) string {
 			return fb
 		}
 		return nb.GetValue()
+	}
+	return fb
+}
+
+func (m *Model) getIntWithFallback(p *parser.Path, fb int) int {
+	n, err := parser.Find(m.root, p)
+	if err != nil || n == nil {
+		return fb
+	}
+	nb, ok := n.(*parser.JsonNumber)
+	if ok {
+		if nb.GetValue() >= 0 {
+			return int(nb.GetValue())
+		}
 	}
 	return fb
 }
@@ -323,7 +354,7 @@ func getBoolOptNode(node parser.NodeC, name string, def bool, msg string) (bool,
 	return ab.GetValue(), nil
 }
 
-func getNumberOptNode(node parser.NodeC, name, msg string, def float64) (float64, error) {
+func getNumberOptNode(node parser.NodeC, name string, def float64, msg string) (float64, error) {
 	a := node.GetNodeWithName(name)
 	if a == nil {
 		return def, nil
@@ -359,12 +390,12 @@ func NewActionData(name string, desc string, hide bool) *ActionData {
 	return &ActionData{name: name, desc: desc, hide: hide, commands: make([]*SingleAction, 0)}
 }
 
-func NewSingleAction(cmd string, args []string, input, outFile, errFile string, delay float64) *SingleAction {
-	return &SingleAction{command: cmd, args: args, sysin: input, sysoutFile: outFile, syserrFile: errFile, delay: delay}
+func NewSingleAction(cmd string, args []string, input, outPwName, outFile, errFile string, delay float64) *SingleAction {
+	return &SingleAction{command: cmd, args: args, outPwName: outPwName, sysin: input, sysoutFile: outFile, syserrFile: errFile, delay: delay}
 }
 
-func (p *ActionData) AddSingleAction(cmd string, data []string, input, outFile, errFile string, delay float64) {
-	sa := NewSingleAction(cmd, data, input, outFile, errFile, delay)
+func (p *ActionData) AddSingleAction(cmd string, data []string, input, outPwNamew, outFile, errFile string, delay float64) {
+	sa := NewSingleAction(cmd, data, input, outPwNamew, outFile, errFile, delay)
 	p.commands = append(p.commands, sa)
 }
 

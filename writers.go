@@ -13,12 +13,10 @@ const (
 	CLIP_TYPE ENUM_MEM_TYPE = iota
 	MEM_TYPE
 	FILE_TYPE
-	ENC_TYPE
 
-	FILE_APPEND_PREF = "append:"  // Used with FileWriter to indicate an append to the file
-	CLIP_BOARD_PREF  = "clip:"    // Used with CacheWriter to indicate that the cache is written to the clipboard
-	MEMORY_PREF      = "memory:"  // Used to indicate that sysout or sysin will be written to cache
-	ENCRYPT_PREF     = "encrypt:" // Used to indicate that sysout or sysin will be written to cache. On close()
+	FILE_APPEND_PREF = "append:" // Used with FileWriter to indicate an append to the file
+	CLIP_BOARD_PREF  = "clip:"   // Used with CacheWriter to indicate that the cache is written to the clipboard
+	MEMORY_PREF      = "memory:" // Used to indicate that sysout or sysin will be written to cache
 	// the contents is encrypted and written to the file.
 )
 
@@ -27,7 +25,6 @@ type Reset interface {
 }
 
 type Encrypted interface {
-	ShouldEncrypt() bool
 	WriteToEncryptedFile(string) error
 }
 
@@ -49,7 +46,8 @@ type BaseWriter struct {
 //
 type FileWriter struct {
 	fileName string
-	filter   string      //  filter filters the lines written (see README.md)
+	filter   string      // filter filters the lines written (see README.md)
+	password string      // If the file requires encryption then this is NOT ""
 	file     *os.File    // The file handle
 	canWrite bool        // flag indicates that io can be written to the file
 	stdErr   *BaseWriter // Used to report errors with file management
@@ -131,10 +129,6 @@ func (cw *CacheWriter) ShouldClip() bool {
 	return cw.cacheType == CLIP_TYPE
 }
 
-func (cw *CacheWriter) ShouldEncrypt() bool {
-	return cw.cacheType == ENC_TYPE
-}
-
 func (cw *CacheWriter) Reset() {
 	cw.sb.Reset()
 }
@@ -155,7 +149,7 @@ func PrefixMatch(s string, pref string, typ ENUM_MEM_TYPE) (string, ENUM_MEM_TYP
 //   "outFile": "clip:name"   		Will write the output to the memory cache with the name 'name'
 //									AND copy it to the clipboard
 //
-func NewWriter(outName string, defaultOut, stdErr *BaseWriter) io.Writer {
+func NewWriter(outName, key string, defaultOut, stdErr *BaseWriter) io.Writer {
 	name, filter := splitNameFilter(outName)
 	if name == "" {
 		if filter == "" {
@@ -169,9 +163,6 @@ func NewWriter(outName string, defaultOut, stdErr *BaseWriter) io.Writer {
 	fn, typ, found := PrefixMatch(name, CLIP_BOARD_PREF, CLIP_TYPE)
 	if !found {
 		fn, typ, found = PrefixMatch(name, MEMORY_PREF, MEM_TYPE)
-		if !found {
-			fn, typ, found = PrefixMatch(name, ENCRYPT_PREF, ENC_TYPE)
-		}
 	}
 	if found {
 		cw := ReadFromMemory(fn)
@@ -185,7 +176,14 @@ func NewWriter(outName string, defaultOut, stdErr *BaseWriter) io.Writer {
 		}
 		return cw
 	}
-
+	if key != "" {
+		cw, err := NewCacheWriter(fn+"|"+filter, typ)
+		if err != nil {
+			stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
+			return defaultOut
+		}
+		return cw
+	}
 	var f *os.File
 	fn, _, found = PrefixMatch(name, FILE_APPEND_PREF, FILE_TYPE)
 	if found {
@@ -197,7 +195,7 @@ func NewWriter(outName string, defaultOut, stdErr *BaseWriter) io.Writer {
 		stdErr.Write([]byte(fmt.Sprintf("Failed to create file writer %s. %s", fn, err.Error())))
 		return defaultOut
 	}
-	return &FileWriter{fileName: fn, file: f, filter: filter, canWrite: true, stdOut: defaultOut, stdErr: stdErr}
+	return &FileWriter{fileName: fn, password: key, file: f, filter: filter, canWrite: true, stdOut: defaultOut, stdErr: stdErr}
 }
 
 func (fw *FileWriter) Close() error {

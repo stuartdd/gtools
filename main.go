@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -52,10 +53,6 @@ func main() {
 		exitApp(err.Error(), 1)
 	}
 
-	err = model.LoadInputFields()
-	if err != nil {
-		exitApp(err.Error(), 1)
-	}
 	if RunAtEnd != "" {
 		_, err := model.GetActionDataForName(RunAtEnd)
 		if err != nil {
@@ -122,6 +119,7 @@ func newActionButton(label string, icon fyne.Resource, tapped func(action *Actio
 func centerPanel() (*fyne.Container, error) {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
+	min := 3
 	for _, l := range model.actionList {
 		if !l.hide {
 			hp := container.NewHBox()
@@ -133,7 +131,12 @@ func centerPanel() (*fyne.Container, error) {
 			hp.Add(btn)
 			hp.Add(widget.NewLabel(MutateStringFromMemCache(l.desc)))
 			vp.Add(hp)
+			min--
 		}
+	}
+	for min > 0 {
+		vp.Add(container.NewHBox(widget.NewLabel("")))
+		min--
 	}
 	return vp, nil
 }
@@ -180,21 +183,47 @@ func action(exec, data1, data2 string) {
 	}
 }
 
-func entryDialog(desc, value string) (string, error) {
-	ret := value
-	var err error = nil
+func warnDialog(title, message string) {
 	wait := true
+	d := dialog.NewInformation(title, strings.ReplaceAll(message, ":", ":\n   "), mainWindow)
+	d.SetOnClosed(func() {
+		wait = false
+	})
+	d.Show()
+	for wait {
+		time.Sleep(100 + time.Millisecond)
+	}
+}
+
+func entryDialog(localValue *InputValue) error {
+	d := NewMyDialog(localValue)
+	d.Run()
+	return nil
+}
+
+func entryDialog2(localValue *InputValue) error {
+	var returnErr error = nil
+	ret := localValue.value
 	entry := widget.NewEntry()
+	if localValue.isPassword {
+		entry = widget.NewPasswordEntry()
+	}
+	entry.SetText(ret)
 	items := make([]*widget.FormItem, 0)
-	items = append(items, widget.NewFormItem("Default value is:", widget.NewLabel(fmt.Sprintf("'%s'", value))))
-	items = append(items, widget.NewFormItem("Enter new value:", entry))
-	d := dialog.NewForm("This action requires a "+desc, "OK", "Abort", items, func(b bool) {
+	items = append(items, widget.NewFormItem(fmt.Sprintf("%s:", localValue.desc), entry))
+
+	wait := true
+	d := dialog.NewForm("This action requires a "+localValue.desc, "OK", "Abort", items, func(b bool) {
 		if b {
-			if entry.Text != "" {
-				ret = entry.Text
+			txt := strings.TrimSpace(entry.Text)
+			if len(txt) >= localValue.minLen {
+				localValue.value = txt
+				localValue.inputDone = true
+			} else {
+				returnErr = fmt.Errorf("action aborted: input length (%d) is less than minLen (%d)", len(txt), localValue.minLen)
 			}
 		} else {
-			err = fmt.Errorf("action aborted by user")
+			returnErr = fmt.Errorf("action aborted by user")
 		}
 		wait = false
 	}, mainWindow)
@@ -202,19 +231,18 @@ func entryDialog(desc, value string) (string, error) {
 	for wait {
 		time.Sleep(100 + time.Millisecond)
 	}
-	return ret, err
+	return returnErr
 }
 
 func execMultipleAction(data *ActionData) {
 	setActionRunning(true, data.name)
 	defer setActionRunning(false, "")
-	model.ResetCacheValues()
 	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
 	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
 	for _, act := range data.commands {
-		err := execSingleAction(act, stdOut, stdErr)
+		err := execSingleAction(act, stdOut, stdErr, data.desc)
 		if err != nil {
-			fmt.Println(err.Error())
+			warnDialog("Action error", err.Error())
 			return
 		}
 		if act.err != nil {
@@ -225,19 +253,23 @@ func execMultipleAction(data *ActionData) {
 	}
 }
 
-func SubstituteValuesIntoStringList(s []string, entryDialog func(string, string) (string, error)) ([]string, error) {
-	resp := make([]string, 0)
-	for _, v := range s {
-		tmp, err := model.MutateStringFromValues(v, entryDialog)
-		if err != nil {
-			return nil, err
+func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) error {
+	outEncKey := ""
+	if sa.outPwName != "" {
+		cf := model.values[sa.outPwName]
+		if cf != nil {
+			if cf.inputRequired && !cf.inputDone {
+				err := entryDialog(cf)
+				if err != nil {
+					return fmt.Errorf("error for action '%s'. %s", actionDesc, err.Error())
+				}
+			}
+			outEncKey = cf.value
+			if outEncKey == "" {
+				return fmt.Errorf("password not provided for action '%s'. value '%s'", actionDesc, sa.outPwName)
+			}
 		}
-		resp = append(resp, MutateStringFromMemCache(tmp))
 	}
-	return resp, nil
-}
-
-func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 	args, err := SubstituteValuesIntoStringList(sa.args, entryDialog)
 	if err != nil {
 		return err
@@ -254,7 +286,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 		}
 		cmd.Stdin = si
 	}
-	so := NewWriter(sa.sysoutFile, stdOut, stdErr)
+	so := NewWriter(sa.sysoutFile, outEncKey, stdOut, stdErr)
 	soReset, reSoOk := so.(Reset)
 	if reSoOk {
 		soReset.Reset()
@@ -265,7 +297,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 	}
 	cmd.Stdout = so
 
-	se := NewWriter(sa.syserrFile, stdErr, stdErr)
+	se := NewWriter(sa.syserrFile, outEncKey, stdErr, stdErr)
 	seReset, reSeOk := se.(Reset)
 	if reSeOk {
 		seReset.Reset()
@@ -276,11 +308,11 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 	}
 	cmd.Stderr = se
 
-	sa.err = nil
-	sa.err = cmd.Start()
-	if sa.err != nil {
-		return sa.err
+	err = cmd.Start()
+	if err != nil {
+		return err
 	}
+	sa.err = nil
 	sa.err = cmd.Wait()
 	if sa.delay > 0.0 {
 		time.Sleep(time.Duration(sa.delay) * time.Millisecond)
@@ -291,19 +323,25 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter) error {
 			mainWindow.Clipboard().SetContent(cp.GetContent())
 		}
 	}
-	ee, ok := se.(Encrypted)
-	if ok {
-		if ee.ShouldEncrypt() {
-			ee.WriteToEncryptedFile(model.values["password"].value)
-		}
-	}
-	ce, ok := so.(Encrypted)
-	if ok {
-		if ce.ShouldEncrypt() {
-			ee.WriteToEncryptedFile(model.values["password"].value)
+	if outEncKey != "" {
+		soE, ok := so.(Encrypted)
+		if ok {
+			soE.WriteToEncryptedFile(outEncKey)
 		}
 	}
 	return nil
+}
+
+func SubstituteValuesIntoStringList(s []string, entryDialog func(*InputValue) error) ([]string, error) {
+	resp := make([]string, 0)
+	for _, v := range s {
+		tmp, err := model.MutateStringFromValues(v, entryDialog)
+		if err != nil {
+			return nil, err
+		}
+		resp = append(resp, MutateStringFromMemCache(tmp))
+	}
+	return resp, nil
 }
 
 func actionClose(data string, code int) {

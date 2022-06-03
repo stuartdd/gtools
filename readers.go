@@ -19,7 +19,6 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 	if selectFrom == "" {
 		return defaultIn, nil
 	}
-
 	fn, _, found := PrefixMatch(selectFrom, MEMORY_PREF, MEM_TYPE)
 	if found {
 		parts := strings.SplitN(fn, "|", 2)

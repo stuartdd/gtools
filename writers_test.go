@@ -13,13 +13,13 @@ var (
 )
 
 func TestEncryptWriter(t *testing.T) {
-	fw := NewWriter("encrypt:test001", stdOut, stdErr)
+	fw := NewWriter("encrypt:test001", "", stdOut, stdErr)
 	write(t, fw, "zzz", 3)
 	cast(t, fw, "zzz")
 	close(t, fw)
 }
 func TestMemoryWriter(t *testing.T) {
-	fw := NewWriter("memory:test001", stdOut, stdErr)
+	fw := NewWriter("memory:test001", "", stdOut, stdErr)
 	write(t, fw, "zzz", 3)
 	cast(t, fw, "zzz")
 	write(t, fw, "11", 2)
@@ -39,7 +39,7 @@ func TestMemoryWriter(t *testing.T) {
 }
 
 func TestFileWriter(t *testing.T) {
-	fw1 := NewWriter("test001.txt", stdOut, stdErr)
+	fw1 := NewWriter("test001.txt", "", stdOut, stdErr)
 	defer delete(t, "test001.txt")
 	write(t, fw1, "zzz", 3)
 	read(t, "test001.txt", "zzz")
@@ -47,13 +47,13 @@ func TestFileWriter(t *testing.T) {
 	read(t, "test001.txt", "zzzyyy")
 	close(t, fw1)
 	read(t, "test001.txt", "zzzyyy")
-	fw2 := NewWriter("test001.txt", stdOut, stdErr)
+	fw2 := NewWriter("test001.txt", "", stdOut, stdErr)
 	write(t, fw2, "zzz", 3)
 	read(t, "test001.txt", "zzz")
 	write(t, fw2, "yyy", 3)
 	read(t, "test001.txt", "zzzyyy")
 	close(t, fw2)
-	fw3 := NewWriter("append:test001.txt", stdOut, stdErr)
+	fw3 := NewWriter("append:test001.txt", "", stdOut, stdErr)
 	read(t, "test001.txt", "zzzyyy")
 	write(t, fw3, "xxx", 3)
 	read(t, "test001.txt", "zzzyyyxxx")
