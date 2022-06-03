@@ -10,8 +10,8 @@
             "password1": {
                 "desc": "Password",
                 "input": true,
-                "value": "abc",
-                "minLen": 8,
+                "value": "",
+                "minLen": 5,
                 "isPassword": true
             }
         }

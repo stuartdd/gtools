@@ -196,42 +196,7 @@ func warnDialog(title, message string) {
 }
 
 func entryDialog(localValue *InputValue) error {
-	d := NewMyDialog(localValue)
-	d.Run()
-	return nil
-}
-
-func entryDialog2(localValue *InputValue) error {
-	var returnErr error = nil
-	ret := localValue.value
-	entry := widget.NewEntry()
-	if localValue.isPassword {
-		entry = widget.NewPasswordEntry()
-	}
-	entry.SetText(ret)
-	items := make([]*widget.FormItem, 0)
-	items = append(items, widget.NewFormItem(fmt.Sprintf("%s:", localValue.desc), entry))
-
-	wait := true
-	d := dialog.NewForm("This action requires a "+localValue.desc, "OK", "Abort", items, func(b bool) {
-		if b {
-			txt := strings.TrimSpace(entry.Text)
-			if len(txt) >= localValue.minLen {
-				localValue.value = txt
-				localValue.inputDone = true
-			} else {
-				returnErr = fmt.Errorf("action aborted: input length (%d) is less than minLen (%d)", len(txt), localValue.minLen)
-			}
-		} else {
-			returnErr = fmt.Errorf("action aborted by user")
-		}
-		wait = false
-	}, mainWindow)
-	d.Show()
-	for wait {
-		time.Sleep(100 + time.Millisecond)
-	}
-	return returnErr
+	return NewMyDialog(localValue).Run(mainWindow).err
 }
 
 func execMultipleAction(data *ActionData) {

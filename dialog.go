@@ -11,49 +11,51 @@ import (
 )
 
 type MyDialog struct {
-	window fyne.Window
-	size   fyne.Size
-	in     *InputValue
-	wait   bool
+	in   *InputValue
+	wait bool
+	err  error
 }
 
 func NewMyDialog(in *InputValue) *MyDialog {
-	t := fmt.Sprintf("Required input: %s", in.desc)
-	w := fyne.CurrentApp().NewWindow(t)
-	size := fyne.NewSize(300, 200)
-	return &MyDialog{window: w, size: size, in: in, wait: true}
+	return &MyDialog{in: in, wait: true, err: nil}
 }
 
-func (d *MyDialog) Run() error {
+func (d *MyDialog) Run(parentWindow fyne.Window) *MyDialog {
 	entry := widget.NewEntry()
 	if d.in.isPassword {
 		entry = widget.NewPasswordEntry()
 	}
 	entry.SetText(d.in.value)
 	ok := widget.NewButtonWithIcon("OK", theme.ConfirmIcon(), func() {
-		d.wait = false
+		d.in.value = entry.Text
 		d.in.inputDone = true
+		d.wait = false
 	})
 	ca := widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
+		d.err = fmt.Errorf("ation cancelled by user")
 		d.wait = false
 	})
-	vBox := container.NewVBox()
-	hBox1 := container.NewHBox()
-	hBox1.Add(widget.NewLabel(fmt.Sprintf("Input: %d", d.in.minLen)))
-	hBox1.Add(entry)
-	vBox.Add(hBox1)
-	hBox2 := container.NewHBox()
-	hBox2.Add(ok)
-	hBox2.Add(ca)
-	vBox.Add(hBox2)
-	d.window.SetContent(vBox)
-	d.window.Resize(d.size)
-	d.window.SetFixedSize(true)
-	d.window.Show()
+
+	min := ""
+	if d.in.minLen > 0 {
+		min = fmt.Sprintf(". (minimum %d chars)", d.in.minLen)
+	}
+	hBox := container.NewHBox()
+	hBox.Add(widget.NewLabel("    "))
+	hBox.Add(ca)
+	hBox.Add(widget.NewLabel(" "))
+	hBox.Add(ok)
+	hBox.Add(widget.NewLabel("    "))
+	buttons := container.NewCenter(hBox)
+	label := container.NewCenter(widget.NewLabel(fmt.Sprintf("Input %s%s", d.in.desc, min)))
+	border := container.NewBorder(label, buttons, nil, nil, entry)
+
+	popup := widget.NewModalPopUp(border, parentWindow.Canvas())
+	popup.Show()
 	d.wait = true
 	for d.wait {
 		time.Sleep(200 + time.Millisecond)
 	}
-	d.window.Hide()
-	return nil
+	popup.Hide()
+	return d
 }
