@@ -11,7 +11,7 @@
                 "desc": "Password",
                 "input": true,
                 "value": "",
-                "minLen": 5,
+                "minLen": 0,
                 "isPassword": true
             }
         }
@@ -24,7 +24,7 @@
                 {
                     "cmd": "echo",
                     "args": [
-                        "Pw IN %{password1}"
+                        "Pw IN %{commitMessage}"
                     ]
                 },
                 {

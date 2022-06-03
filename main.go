@@ -11,7 +11,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -183,20 +182,10 @@ func action(exec, data1, data2 string) {
 	}
 }
 
-func warnDialog(title, message string) {
-	wait := true
-	d := dialog.NewInformation(title, strings.ReplaceAll(message, ":", ":\n   "), mainWindow)
-	d.SetOnClosed(func() {
-		wait = false
-	})
-	d.Show()
-	for wait {
-		time.Sleep(100 + time.Millisecond)
-	}
-}
-
-func entryDialog(localValue *InputValue) error {
-	return NewMyDialog(localValue, mainWindow).Run().err
+func validatedEntryDialog(localValue *InputValue) error {
+	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
+		return len(strings.TrimSpace(s)) >= iv.minLen
+	}, mainWindow).Run().err
 }
 
 func execMultipleAction(data *ActionData) {
@@ -204,15 +193,16 @@ func execMultipleAction(data *ActionData) {
 	defer setActionRunning(false, "")
 	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
 	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
-	for _, act := range data.commands {
+	for i, act := range data.commands {
 		err := execSingleAction(act, stdOut, stdErr, data.desc)
 		if err != nil {
-			warnDialog("Action error", err.Error())
+			WarnDialog(fmt.Sprintf("Action '%s' step '%d' error", data.desc, i), err.Error(), mainWindow)
 			return
 		}
 		if act.err != nil {
 			stdErr.Write([]byte(act.err.Error()))
 			stdErr.Write([]byte("\n"))
+			WarnDialog(fmt.Sprintf("Action '%s' step '%d' failed", data.desc, i), act.err.Error(), mainWindow)
 			return
 		}
 	}
@@ -224,18 +214,18 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		cf := model.values[sa.outPwName]
 		if cf != nil {
 			if cf.inputRequired && !cf.inputDone {
-				err := entryDialog(cf)
+				err := validatedEntryDialog(cf)
 				if err != nil {
-					return fmt.Errorf("error for action '%s'. %s", actionDesc, err.Error())
+					return err
 				}
 			}
 			outEncKey = cf.value
 			if outEncKey == "" {
-				return fmt.Errorf("password not provided for action '%s'. value '%s'", actionDesc, sa.outPwName)
+				return fmt.Errorf("password not provided")
 			}
 		}
 	}
-	args, err := SubstituteValuesIntoStringList(sa.args, entryDialog)
+	args, err := SubstituteValuesIntoStringList(sa.args, validatedEntryDialog)
 	if err != nil {
 		return err
 	}
