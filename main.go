@@ -196,7 +196,7 @@ func warnDialog(title, message string) {
 }
 
 func entryDialog(localValue *InputValue) error {
-	return NewMyDialog(localValue).Run(mainWindow).err
+	return NewMyDialog(localValue, mainWindow).Run().err
 }
 
 func execMultipleAction(data *ActionData) {

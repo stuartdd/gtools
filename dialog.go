@@ -11,16 +11,17 @@ import (
 )
 
 type MyDialog struct {
-	in   *InputValue
-	wait bool
-	err  error
+	in     *InputValue
+	parent fyne.Window
+	wait   bool
+	err    error
 }
 
-func NewMyDialog(in *InputValue) *MyDialog {
-	return &MyDialog{in: in, wait: true, err: nil}
+func NewMyDialog(in *InputValue, parentWindow fyne.Window) *MyDialog {
+	return &MyDialog{in: in, parent: parentWindow, wait: true, err: nil}
 }
 
-func (d *MyDialog) Run(parentWindow fyne.Window) *MyDialog {
+func (d *MyDialog) Run() *MyDialog {
 	entry := widget.NewEntry()
 	if d.in.isPassword {
 		entry = widget.NewPasswordEntry()
@@ -50,7 +51,7 @@ func (d *MyDialog) Run(parentWindow fyne.Window) *MyDialog {
 	label := container.NewCenter(widget.NewLabel(fmt.Sprintf("Input %s%s", d.in.desc, min)))
 	border := container.NewBorder(label, buttons, nil, nil, entry)
 
-	popup := widget.NewModalPopUp(border, parentWindow.Canvas())
+	popup := widget.NewModalPopUp(border, d.parent.Canvas())
 	popup.Show()
 	d.wait = true
 	for d.wait {
