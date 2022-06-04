@@ -9,13 +9,13 @@ import (
 )
 
 type EncReader interface {
-	setKey(string)
-	shouldDecrypy() bool
+	SetKey(string)
 }
 
 type StringReader struct {
 	pos     int
 	resp    string
+	key     string
 	delay   bool
 	delayMs int64
 	typ     ENUM_MEM_TYPE
@@ -41,16 +41,13 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 			if err != nil {
 				return nil, err
 			}
-			return &StringReader{resp: string(resp), delayMs: 0, typ: typ}, nil
+			return &StringReader{resp: string(resp), delayMs: 0, typ: typ, key: ""}, nil
 		} else {
 			return nil, fmt.Errorf("could not locate cache entry for in parameter %s.%s", MEMORY_PREF, parts[0])
 		}
 	}
 
 	fn, typ, found = PrefixMatch(selectFrom, FILE_PREF, FILE_TYPE)
-	if !found {
-		fn, typ, found = PrefixMatch(selectFrom, ENCRYPT_PREF, ENC_TYPE)
-	}
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
@@ -68,9 +65,13 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 		if err != nil {
 			return nil, err
 		}
-		return &StringReader{resp: string(resp), delayMs: 0, typ: typ}, nil
+		return &StringReader{resp: string(resp), delayMs: 0, typ: typ, key: ""}, nil
 	}
-	return &StringReader{resp: selectFrom, delayMs: 0, typ: STR_TYPE}, nil
+	return &StringReader{resp: selectFrom, delayMs: 0, typ: STR_TYPE, key: ""}, nil
+}
+
+func (sr *StringReader) SetKey(key string) {
+	sr.key = key
 }
 
 func (sr *StringReader) Read(p []byte) (n int, err error) {
@@ -78,13 +79,21 @@ func (sr *StringReader) Read(p []byte) (n int, err error) {
 		time.Sleep(time.Millisecond * time.Duration(sr.delayMs))
 		sr.delay = false
 	}
-	i := len(sr.resp) - sr.pos
+	resp := sr.resp
+	if sr.key != "" {
+		tmp, err := DecryptData([]byte(sr.key), []byte(resp))
+		if err != nil {
+			return 0, err
+		}
+		resp = string(tmp)
+	}
+	i := len(resp) - sr.pos
 	if len(p) < i {
 		i = len(p)
 	}
 	j := 0
 	for ; j < i; j++ {
-		p[j] = sr.resp[sr.pos]
+		p[j] = resp[sr.pos]
 		sr.pos++
 		if p[j] == '\n' {
 			j++

@@ -207,29 +207,41 @@ func execMultipleAction(data *ActionData) {
 		}
 	}
 }
-
-func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) error {
-	outEncKey := ""
-	if sa.outPwName != "" {
-		cf := model.values[sa.outPwName]
-		if cf != nil {
+func deriveKeyFromName(name string, sa *SingleAction) (string, error) {
+	if name != "" {
+		cf, ok := model.values[name]
+		if ok {
 			if cf.inputRequired && !cf.inputDone {
 				err := validatedEntryDialog(cf)
 				if err != nil {
-					return err
+					return "", err
 				}
 			}
-			outEncKey = cf.value
-			if outEncKey == "" {
-				return fmt.Errorf("password not provided")
+			if cf.value == "" {
+				return "", fmt.Errorf("password not provided")
 			}
+			return cf.value, nil
 		}
 	}
+	return "", nil
+}
+
+func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) error {
+	outEncKey, err := deriveKeyFromName(sa.outPwName, sa)
+	if err != nil {
+		return err
+	}
+	inEncKey, err := deriveKeyFromName(sa.inPwName, sa)
+	if err != nil {
+		return err
+	}
+
 	args, err := SubstituteValuesIntoStringList(sa.args, validatedEntryDialog)
 	if err != nil {
 		return err
 	}
 	cmd := exec.Command(sa.command, args...)
+
 	if sa.sysin != "" {
 		si, err := NewStringReader(sa.sysin, cmd.Stdin)
 		if err != nil {
@@ -239,11 +251,10 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		if ok {
 			defer siCloser.Close()
 		}
-		// enc, ok := si.(EncReader)
-		// if ok && enc.shouldDecrypy() {
-
-		// 	enc.setKey()
-		// }
+		encR, ok := si.(EncReader)
+		if ok {
+			encR.SetKey(inEncKey)
+		}
 		cmd.Stdin = si
 	}
 	so := NewWriter(sa.sysoutFile, outEncKey, stdOut, stdErr)

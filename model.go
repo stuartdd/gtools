@@ -18,7 +18,6 @@ const (
 	CLIP_TYPE ENUM_MEM_TYPE = iota
 	MEM_TYPE
 	FILE_TYPE
-	ENC_TYPE
 	STR_TYPE
 )
 
@@ -32,11 +31,10 @@ var (
 	RunAtStart               = ""
 	RunAtEnd                 = ""
 
-	FILE_APPEND_PREF = "append:"    // Used with FileWriter to indicate an append to the file
-	CLIP_BOARD_PREF  = "clip:"      // Used with CacheWriter to indicate that the cache is written to the clipboard
-	MEMORY_PREF      = "memory:"    // Used to indicate that sysout or sysin will be written to cache
-	FILE_PREF        = "file:"      // Used with FileReader to indicate a sysin from a file
-	ENCRYPT_PREF     = "encrypted:" // Used with FileReader to indicate a sysin from an encrypted file
+	FILE_APPEND_PREF = "append:" // Used with FileWriter to indicate an append to the file
+	CLIP_BOARD_PREF  = "clip:"   // Used with CacheWriter to indicate that the cache is written to the clipboard
+	MEMORY_PREF      = "memory:" // Used to indicate that sysout or sysin will be written to cache
+	FILE_PREF        = "file:"   // Used with FileReader to indicate a sysin from a file
 
 )
 
@@ -238,9 +236,6 @@ func (m *Model) loadActions() error {
 			if inPwName != "" {
 				if in == "" {
 					return fmt.Errorf("for '%s'.' using 'inPwName=%s' without 'in' file defined", msg, inPwName)
-				}
-				if !strings.HasPrefix(in, FILE_PREF) {
-					return fmt.Errorf("for '%s'.' using 'inPwName=%s' without 'in' defined with prefix '%s'", msg, inPwName, FILE_PREF)
 				}
 			}
 			actionData.AddSingleAction(cmd, data, in, outPwName, inPwName, sysoutFile, syserrFile, delay)

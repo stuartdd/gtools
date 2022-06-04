@@ -29,12 +29,6 @@
                         "-l"
                     ],
                     "outPwName": "password1"
-                },
-                {
-                    "cmd": "echo",
-                    "args": [
-                        "Pw AFTER %{password1}"
-                    ]
                 }
             ]
         },
