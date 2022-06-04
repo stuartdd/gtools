@@ -29,7 +29,7 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
-			return nil, fmt.Errorf("no cache name after %s prefix of in parameter", MEMORY_PREF)
+			return nil, fmt.Errorf("no cache name after %s prefix of 'in' parameter", MEMORY_PREF)
 		}
 		cw := ReadFromMemory(parts[0])
 		if cw != nil {
@@ -41,7 +41,7 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 			if err != nil {
 				return nil, err
 			}
-			return &StringReader{resp: string(resp), delayMs: 0, typ: typ, key: ""}, nil
+			return &StringReader{resp: string(resp), delayMs: 0, pos: 0, typ: typ, key: ""}, nil
 		} else {
 			return nil, fmt.Errorf("could not locate cache entry for in parameter %s.%s", MEMORY_PREF, parts[0])
 		}
@@ -51,7 +51,7 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
-			return nil, fmt.Errorf("could not locate file name after %s prefix of in parameter", FILE_APPEND_PREF)
+			return nil, fmt.Errorf("could not locate file name after %s prefix of 'in' parameter", FILE_PREF)
 		}
 		data, err := readFile(parts[0])
 		if err != nil {
@@ -65,9 +65,9 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 		if err != nil {
 			return nil, err
 		}
-		return &StringReader{resp: string(resp), delayMs: 0, typ: typ, key: ""}, nil
+		return &StringReader{resp: string(resp), delayMs: 0, pos: 0, typ: typ, key: ""}, nil
 	}
-	return &StringReader{resp: selectFrom, delayMs: 0, typ: STR_TYPE, key: ""}, nil
+	return &StringReader{resp: selectFrom, delayMs: 0, pos: 0, typ: STR_TYPE, key: ""}, nil
 }
 
 func (sr *StringReader) SetKey(key string) {
@@ -79,21 +79,21 @@ func (sr *StringReader) Read(p []byte) (n int, err error) {
 		time.Sleep(time.Millisecond * time.Duration(sr.delayMs))
 		sr.delay = false
 	}
-	resp := sr.resp
-	if sr.key != "" {
-		tmp, err := DecryptData([]byte(sr.key), []byte(resp))
+	if sr.key != "" && sr.pos == 0 {
+		tmp, err := DecryptData([]byte(sr.key), []byte(sr.resp))
 		if err != nil {
 			return 0, err
 		}
-		resp = string(tmp)
+		sr.resp = string(tmp)
+		sr.key = ""
 	}
-	i := len(resp) - sr.pos
+	i := len(sr.resp) - sr.pos
 	if len(p) < i {
 		i = len(p)
 	}
 	j := 0
 	for ; j < i; j++ {
-		p[j] = resp[sr.pos]
+		p[j] = sr.resp[sr.pos]
 		sr.pos++
 		if p[j] == '\n' {
 			j++

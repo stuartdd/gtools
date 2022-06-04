@@ -11,7 +11,7 @@
                 "desc": "Password",
                 "input": true,
                 "value": "",
-                "minLen": 0,
+                "minLen": 5,
                 "isPassword": true
             }
         }

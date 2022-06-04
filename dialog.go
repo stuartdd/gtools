@@ -22,11 +22,12 @@ func NewMyDialog(in *InputValue, validate func(string, *InputValue) bool, parent
 	return &MyDialog{in: in, isValid: validate, parent: parentWindow, wait: true, err: nil}
 }
 
-func WarnDialog(title, message string, parentWindow fyne.Window) {
+func WarnDialog(title, message string, parentWindow fyne.Window, timeout int) {
 	wait := true
 	ok := widget.NewButtonWithIcon("OK", theme.ConfirmIcon(), func() {
 		wait = false
 	})
+	ok.Importance = widget.HighImportance
 	titleLab := container.NewCenter(widget.NewLabel(title))
 	messageLab := container.NewCenter(widget.NewLabel(message))
 	buttons := container.NewCenter(ok)
@@ -34,21 +35,40 @@ func WarnDialog(title, message string, parentWindow fyne.Window) {
 	border := container.NewBorder(titleLab, buttons, nil, nil, messageLab)
 	popup := widget.NewModalPopUp(border, parentWindow.Canvas())
 	popup.Show()
+	tout := timeout * 2
 	for wait {
-		time.Sleep(200 + time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
+		tout--
+		if tout == 0 {
+			wait = false
+		}
 	}
 	popup.Hide()
 }
 
-func (d *MyDialog) onChange(s string, ok *widget.Button, in *InputValue) {
+func (d *MyDialog) commit(s string) {
+	d.in.value = s
+	d.in.inputDone = true
+	d.wait = false
+}
+
+func (d *MyDialog) abort(s string) {
+	d.err = fmt.Errorf(s)
+	d.wait = false
+}
+
+func (d *MyDialog) callIsValid(s string) bool {
 	if d.isValid == nil {
+		return true
+	}
+	return d.isValid(s, d.in)
+}
+
+func (d *MyDialog) onChange(s string, ok *widget.Button) {
+	if d.callIsValid(s) {
 		ok.Enable()
 	} else {
-		if d.isValid(s, d.in) {
-			ok.Enable()
-		} else {
-			ok.Disable()
-		}
+		ok.Disable()
 	}
 }
 
@@ -58,21 +78,25 @@ func (d *MyDialog) Run() *MyDialog {
 		entry = widget.NewPasswordEntry()
 	}
 	entry.SetText(d.in.value)
+	entry.OnSubmitted = func(s string) {
+		if d.callIsValid(entry.Text) {
+			d.commit(entry.Text)
+		}
+	}
 
 	ok := widget.NewButtonWithIcon("OK", theme.ConfirmIcon(), func() {
-		d.in.value = entry.Text
-		d.in.inputDone = true
-		d.wait = false
+		d.commit(entry.Text)
 	})
+	ok.Importance = widget.HighImportance
+
 	ca := widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
-		d.err = fmt.Errorf("input cancelled by user")
-		d.wait = false
+		d.abort("input cancelled by user")
 	})
 
 	entry.OnChanged = func(s string) {
-		d.onChange(entry.Text, ok, d.in)
+		d.onChange(entry.Text, ok)
 	}
-	d.onChange(entry.Text, ok, d.in)
+	d.onChange(entry.Text, ok)
 
 	min := ""
 	if d.in.minLen > 0 {
@@ -90,9 +114,11 @@ func (d *MyDialog) Run() *MyDialog {
 
 	popup := widget.NewModalPopUp(border, d.parent.Canvas())
 	popup.Show()
+	popup.Canvas.Focus(entry)
+	time.Sleep(200 + time.Millisecond)
 	d.wait = true
 	for d.wait {
-		time.Sleep(200 + time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 	popup.Hide()
 	return d

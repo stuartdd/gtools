@@ -196,13 +196,13 @@ func execMultipleAction(data *ActionData) {
 	for i, act := range data.commands {
 		err := execSingleAction(act, stdOut, stdErr, data.desc)
 		if err != nil {
-			WarnDialog(fmt.Sprintf("Action '%s' step '%d' error", data.desc, i), err.Error(), mainWindow)
+			WarnDialog(fmt.Sprintf("Action '%s' step '%d' error", data.desc, i), err.Error(), mainWindow, 5)
 			return
 		}
 		if act.err != nil {
 			stdErr.Write([]byte(act.err.Error()))
 			stdErr.Write([]byte("\n"))
-			WarnDialog(fmt.Sprintf("Action '%s' step '%d' failed", data.desc, i), act.err.Error(), mainWindow)
+			WarnDialog(fmt.Sprintf("Action '%s' step '%d' failed", data.desc, i), act.err.Error(), mainWindow, 5)
 			return
 		}
 	}
