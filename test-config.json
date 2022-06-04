@@ -22,12 +22,6 @@
             "desc": "Write an encrypted file",
             "list": [
                 {
-                    "cmd": "echo",
-                    "args": [
-                        "Pw IN %{commitMessage}"
-                    ]
-                },
-                {
                     "cmd": "git",
                     "outFile": "encFile.txt",
                     "args": [
@@ -50,9 +44,9 @@
             "list": [
                 {
                     "cmd": "cat",
-                    "args": [
-                        "encFile.txt"
-                    ]
+                    "args": [],
+                    "in": "file:encFile.txt",
+                    "inPwName": "password1"
                 }
             ]
         }

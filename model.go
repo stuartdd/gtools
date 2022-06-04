@@ -8,10 +8,18 @@ import (
 	"github.com/stuartdd2/JsonParser4go/parser"
 )
 
+type ENUM_MEM_TYPE int
+
 const (
 	STD_OUT = 0
 	STD_ERR = 1
 	STD_IN  = 2
+
+	CLIP_TYPE ENUM_MEM_TYPE = iota
+	MEM_TYPE
+	FILE_TYPE
+	ENC_TYPE
+	STR_TYPE
 )
 
 var (
@@ -23,6 +31,13 @@ var (
 	ShowExit1                = false
 	RunAtStart               = ""
 	RunAtEnd                 = ""
+
+	FILE_APPEND_PREF = "append:"    // Used with FileWriter to indicate an append to the file
+	CLIP_BOARD_PREF  = "clip:"      // Used with CacheWriter to indicate that the cache is written to the clipboard
+	MEMORY_PREF      = "memory:"    // Used to indicate that sysout or sysin will be written to cache
+	FILE_PREF        = "file:"      // Used with FileReader to indicate a sysin from a file
+	ENCRYPT_PREF     = "encrypted:" // Used with FileReader to indicate a sysin from an encrypted file
+
 )
 
 type InputValue struct {
@@ -54,6 +69,7 @@ type SingleAction struct {
 	args       []string
 	sysin      string
 	outPwName  string
+	inPwName   string
 	sysoutFile string
 	syserrFile string
 	err        error
@@ -209,13 +225,25 @@ func (m *Model) loadActions() error {
 			if outPwName != "" {
 				_, found := m.values[outPwName]
 				if !found {
-					return fmt.Errorf("in %s. 'outPwName=%s' was not found in config.cachedFields", msg, outPwName)
+					return fmt.Errorf("for '%s'. 'outPwName=%s' was not found in config.cachedFields", msg, outPwName)
 				}
 				if invalidOutFileNameForPw(sysoutFile) {
-					return fmt.Errorf("in %s. using 'outPwName=%s' without 'outFile' defined as a file", msg, outPwName)
+					return fmt.Errorf("for '%s'. using 'outPwName=%s' without 'outFile' defined as a file", msg, outPwName)
 				}
 			}
-			actionData.AddSingleAction(cmd, data, in, outPwName, sysoutFile, syserrFile, delay)
+			inPwName, err := getStringOptNode(cmdNode.(parser.NodeC), "inPwName", "", msg)
+			if err != nil {
+				return err
+			}
+			if inPwName != "" {
+				if in == "" {
+					return fmt.Errorf("for '%s'.' using 'inPwName=%s' without 'in' file defined", msg, inPwName)
+				}
+				if !strings.HasPrefix(in, FILE_PREF) {
+					return fmt.Errorf("for '%s'.' using 'inPwName=%s' without 'in' defined with prefix '%s'", msg, inPwName, FILE_PREF)
+				}
+			}
+			actionData.AddSingleAction(cmd, data, in, outPwName, inPwName, sysoutFile, syserrFile, delay)
 		}
 		if actionData.len() == 0 {
 			return fmt.Errorf("no commands found in 'list' for action '%s' with name '%s'", msg, actionData.name)
@@ -390,12 +418,12 @@ func NewActionData(name string, desc string, hide bool) *ActionData {
 	return &ActionData{name: name, desc: desc, hide: hide, commands: make([]*SingleAction, 0)}
 }
 
-func NewSingleAction(cmd string, args []string, input, outPwName, outFile, errFile string, delay float64) *SingleAction {
-	return &SingleAction{command: cmd, args: args, outPwName: outPwName, sysin: input, sysoutFile: outFile, syserrFile: errFile, delay: delay}
+func NewSingleAction(cmd string, args []string, input, outPwName, inPwName, outFile, errFile string, delay float64) *SingleAction {
+	return &SingleAction{command: cmd, args: args, outPwName: outPwName, inPwName: inPwName, sysin: input, sysoutFile: outFile, syserrFile: errFile, delay: delay}
 }
 
-func (p *ActionData) AddSingleAction(cmd string, data []string, input, outPwNamew, outFile, errFile string, delay float64) {
-	sa := NewSingleAction(cmd, data, input, outPwNamew, outFile, errFile, delay)
+func (p *ActionData) AddSingleAction(cmd string, data []string, input, outPwName, inPwName, outFile, errFile string, delay float64) {
+	sa := NewSingleAction(cmd, data, input, outPwName, inPwName, outFile, errFile, delay)
 	p.commands = append(p.commands, sa)
 }
 

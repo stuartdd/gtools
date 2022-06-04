@@ -7,19 +7,6 @@ import (
 	"strings"
 )
 
-type ENUM_MEM_TYPE int
-
-const (
-	CLIP_TYPE ENUM_MEM_TYPE = iota
-	MEM_TYPE
-	FILE_TYPE
-
-	FILE_APPEND_PREF = "append:" // Used with FileWriter to indicate an append to the file
-	CLIP_BOARD_PREF  = "clip:"   // Used with CacheWriter to indicate that the cache is written to the clipboard
-	MEMORY_PREF      = "memory:" // Used to indicate that sysout or sysin will be written to cache
-	// the contents is encrypted and written to the file.
-)
-
 type Reset interface {
 	Reset()
 }

@@ -239,6 +239,11 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		if ok {
 			defer siCloser.Close()
 		}
+		// enc, ok := si.(EncReader)
+		// if ok && enc.shouldDecrypy() {
+
+		// 	enc.setKey()
+		// }
 		cmd.Stdin = si
 	}
 	so := NewWriter(sa.sysoutFile, outEncKey, stdOut, stdErr)

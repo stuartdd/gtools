@@ -8,18 +8,24 @@ import (
 	"time"
 )
 
+type EncReader interface {
+	setKey(string)
+	shouldDecrypy() bool
+}
+
 type StringReader struct {
 	pos     int
 	resp    string
 	delay   bool
 	delayMs int64
+	typ     ENUM_MEM_TYPE
 }
 
 func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) {
 	if selectFrom == "" {
 		return defaultIn, nil
 	}
-	fn, _, found := PrefixMatch(selectFrom, MEMORY_PREF, MEM_TYPE)
+	fn, typ, found := PrefixMatch(selectFrom, MEMORY_PREF, MEM_TYPE)
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
@@ -35,13 +41,16 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 			if err != nil {
 				return nil, err
 			}
-			return &StringReader{resp: string(resp), delayMs: 0}, nil
+			return &StringReader{resp: string(resp), delayMs: 0, typ: typ}, nil
 		} else {
 			return nil, fmt.Errorf("could not locate cache entry for in parameter %s.%s", MEMORY_PREF, parts[0])
 		}
 	}
 
-	fn, _, found = PrefixMatch(selectFrom, FILE_APPEND_PREF, FILE_TYPE)
+	fn, typ, found = PrefixMatch(selectFrom, FILE_PREF, FILE_TYPE)
+	if !found {
+		fn, typ, found = PrefixMatch(selectFrom, ENCRYPT_PREF, ENC_TYPE)
+	}
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {
@@ -59,9 +68,9 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 		if err != nil {
 			return nil, err
 		}
-		return &StringReader{resp: string(resp), delayMs: 0}, nil
+		return &StringReader{resp: string(resp), delayMs: 0, typ: typ}, nil
 	}
-	return &StringReader{resp: selectFrom, delayMs: 0}, nil
+	return &StringReader{resp: selectFrom, delayMs: 0, typ: STR_TYPE}, nil
 }
 
 func (sr *StringReader) Read(p []byte) (n int, err error) {
