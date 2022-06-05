@@ -259,13 +259,15 @@ func (m *Model) GetTabs() (map[string][]*ActionData, string) {
 	resp := make(map[string][]*ActionData, 0)
 	singleName := ""
 	for _, a := range m.actionList {
-		singleName = a.tab
-		existing, found := resp[singleName]
-		if !found {
-			existing = make([]*ActionData, 0)
+		if !a.hide {
+			singleName = a.tab
+			existing, found := resp[singleName]
+			if !found {
+				existing = make([]*ActionData, 0)
+			}
+			existing = append(existing, a)
+			resp[singleName] = existing
 		}
-		existing = append(existing, a)
-		resp[singleName] = existing
 	}
 	return resp, singleName
 }
