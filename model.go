@@ -260,7 +260,11 @@ func (m *Model) GetTabs() (map[string][]*ActionData, string) {
 	singleName := ""
 	for _, a := range m.actionList {
 		if !a.hide {
-			singleName = a.tab
+			if a.tab == "" {
+				singleName = "Main"
+			} else {
+				singleName = a.tab
+			}
 			existing, found := resp[singleName]
 			if !found {
 				existing = make([]*ActionData, 0)

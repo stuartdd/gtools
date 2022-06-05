@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -121,15 +122,27 @@ func update() {
 
 func centerPanelTabbed(actionsByTab map[string][]*ActionData) (*container.AppTabs, error) {
 	tabs := container.NewAppTabs()
-	for name, ad := range actionsByTab {
-		cp, _ := centerPanel(ad)
-		if name == "" {
-			name = "Main"
-		}
-		ti := container.NewTabItem(name, cp)
+
+	names := make([]string, 0)
+	for name := range actionsByTab {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		cp, _ := centerPanel(actionsByTab[name])
+		ti := container.NewTabItem(getNameAfterTag(name), cp)
 		tabs.Append(ti)
 	}
 	return tabs, nil
+}
+
+func getNameAfterTag(in string) string {
+	_, cut, found := strings.Cut(in, ":")
+	if found {
+		return cut
+	}
+	return in
 }
 
 func centerPanel(actionData []*ActionData) (*fyne.Container, error) {
