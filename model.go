@@ -56,6 +56,7 @@ type Model struct {
 }
 
 type ActionData struct {
+	tab      string
 	name     string
 	desc     string
 	hide     bool
@@ -172,6 +173,10 @@ func (m *Model) loadActions() error {
 		if err != nil {
 			return err
 		}
+		tabName, err := getStringOptNode(actionNode.(parser.NodeC), "tab", "", msg)
+		if err != nil {
+			return err
+		}
 		desc, err := getStringNode(actionNode.(parser.NodeC), "desc", msg)
 		if err != nil {
 			return err
@@ -180,7 +185,7 @@ func (m *Model) loadActions() error {
 		if err != nil {
 			return err
 		}
-		actionData := m.getActionData(name, desc, hide)
+		actionData := m.getActionData(name, tabName, desc, hide)
 		cmdList, err := getListNode(actionNode.(parser.NodeC), "list")
 		if err != nil {
 			return fmt.Errorf("node at %s does not have a list[] node", msg)
@@ -248,6 +253,21 @@ func (m *Model) loadActions() error {
 		return fmt.Errorf("node at '%s' did not contain any actions", actionsPrefName)
 	}
 	return nil
+}
+
+func (m *Model) GetTabs() (map[string][]*ActionData, string) {
+	resp := make(map[string][]*ActionData, 0)
+	singleName := ""
+	for _, a := range m.actionList {
+		singleName = a.tab
+		existing, found := resp[singleName]
+		if !found {
+			existing = make([]*ActionData, 0)
+		}
+		existing = append(existing, a)
+		resp[singleName] = existing
+	}
+	return resp, singleName
 }
 
 func invalidOutFileNameForPw(n string) bool {
@@ -331,13 +351,13 @@ func (m *Model) getBoolWithFallback(p *parser.Path, fb bool) bool {
 	return fb
 }
 
-func (p *Model) getActionData(name, desc string, hide bool) *ActionData {
+func (p *Model) getActionData(name, tabName, desc string, hide bool) *ActionData {
 	for _, a1 := range p.actionList {
 		if a1.name == name && a1.desc == desc {
 			return a1
 		}
 	}
-	n := NewActionData(name, desc, hide)
+	n := NewActionData(name, tabName, desc, hide)
 	p.actionList = append(p.actionList, n)
 	return n
 }
@@ -409,8 +429,8 @@ func getStringList(node parser.NodeC, name, msg string) ([]string, error) {
 	return resp, nil
 }
 
-func NewActionData(name string, desc string, hide bool) *ActionData {
-	return &ActionData{name: name, desc: desc, hide: hide, commands: make([]*SingleAction, 0)}
+func NewActionData(name, tabName, desc string, hide bool) *ActionData {
+	return &ActionData{name: name, tab: tabName, desc: desc, hide: hide, commands: make([]*SingleAction, 0)}
 }
 
 func NewSingleAction(cmd string, args []string, input, outPwName, inPwName, outFile, errFile string, delay float64) *SingleAction {

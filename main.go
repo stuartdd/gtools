@@ -93,16 +93,6 @@ func gui() {
 	mainWindow.ShowAndRun()
 }
 
-func update() {
-	bb := buttonBar(action)
-	cp, err := centerPanel()
-	if err != nil {
-		return
-	}
-	c := container.NewBorder(bb, nil, nil, nil, cp)
-	mainWindow.SetContent(c)
-}
-
 func newActionButton(label string, icon fyne.Resource, tapped func(action *ActionData), action *ActionData) *ActionButton {
 	ab := &ActionButton{action: action}
 	ab.ExtendBaseWidget(ab)
@@ -115,11 +105,38 @@ func newActionButton(label string, icon fyne.Resource, tapped func(action *Actio
 	return ab
 }
 
-func centerPanel() (*fyne.Container, error) {
+func update() {
+	var c fyne.CanvasObject
+	bb := buttonBar(action)
+	tabs, singleName := model.GetTabs()
+	if len(tabs) > 1 {
+		cp, _ := centerPanelTabbed(tabs)
+		c = container.NewBorder(bb, nil, nil, nil, cp)
+	} else {
+		cp, _ := centerPanel(tabs[singleName])
+		c = container.NewBorder(bb, nil, nil, nil, cp)
+	}
+	mainWindow.SetContent(c)
+}
+
+func centerPanelTabbed(actionsByTab map[string][]*ActionData) (*container.AppTabs, error) {
+	tabs := container.NewAppTabs()
+	for name, ad := range actionsByTab {
+		cp, _ := centerPanel(ad)
+		if name == "" {
+			name = "Main"
+		}
+		ti := container.NewTabItem(name, cp)
+		tabs.Append(ti)
+	}
+	return tabs, nil
+}
+
+func centerPanel(actionData []*ActionData) (*fyne.Container, error) {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
 	min := 3
-	for _, l := range model.actionList {
+	for _, l := range actionData {
 		if !l.hide {
 			hp := container.NewHBox()
 			btn := newActionButton(l.name, theme.SettingsIcon(), func(action *ActionData) {

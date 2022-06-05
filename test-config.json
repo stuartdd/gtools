@@ -18,6 +18,7 @@
     },
     "actions": [
         {
+            "tab":"Encryption",
             "name": "Write Enc",
             "desc": "Write an encrypted file",
             "list": [
@@ -33,6 +34,7 @@
             ]
         },
         {
+            "tab":"Encryption",
             "name": "Read Enc",
             "desc": "Read an encrypted file",
             "list": [
