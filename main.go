@@ -20,6 +20,9 @@ const (
 	RESET = "\033[0m"
 	GREEN = "\033[;32m"
 	RED   = "\033[;31m"
+
+	RC_SETUP = -1
+	RC_CLEAN = 0
 )
 
 var (
@@ -45,28 +48,28 @@ func main() {
 			exitApp(err.Error(), 1)
 		}
 		path = path + string(os.PathSeparator) + "gtool-config.json"
-		model, err = NewModelFromFile(path)
+		model, err = NewModelFromFile(path, true)
 	} else {
-		model, err = NewModelFromFile(os.Args[1])
+		model, err = NewModelFromFile(os.Args[1], true)
 	}
 	if err != nil {
 		exitApp(err.Error(), 1)
 	}
 
-	if RunAtEnd != "" {
-		_, err := model.GetActionDataForName(RunAtEnd)
+	if model.RunAtEnd != "" {
+		_, err := model.GetActionDataForName(model.RunAtEnd)
 		if err != nil {
 			exitApp(fmt.Sprintf("RunAtEnd: %s", err.Error()), 1)
 		}
 	}
-	if RunAtStart != "" {
+	if model.RunAtStart != "" {
 		runAtStart()
 	}
 	gui()
 }
 
 func runAtStart() {
-	action, err := model.GetActionDataForName(RunAtStart)
+	action, err := model.GetActionDataForName(model.RunAtStart)
 	if err != nil {
 		exitApp(fmt.Sprintf("RunAtStart: %s", err.Error()), 1)
 	}
@@ -175,13 +178,13 @@ func buttonBar(exec func(string, string, string)) *fyne.Container {
 	bb.Add(widget.NewButtonWithIcon("Close(0)", theme.LogoutIcon(), func() {
 		exec("exit", "", "")
 	}))
-	if ShowExit1 {
+	if model.ShowExit1 {
 		bb.Add(widget.NewButtonWithIcon("Close(1)", theme.LogoutIcon(), func() {
 			exec("exit1", "", "")
 		}))
 	}
 	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
-		m, err := NewModelFromFile(model.fileName)
+		m, err := NewModelFromFile(model.fileName, true)
 		if err != nil {
 			fmt.Printf("Failed to reload")
 		} else {
@@ -218,25 +221,6 @@ func validatedEntryDialog(localValue *InputValue) error {
 	}, mainWindow).Run().err
 }
 
-func execMultipleAction(data *ActionData) {
-	setActionRunning(true, data.name)
-	defer setActionRunning(false, "")
-	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
-	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
-	for i, act := range data.commands {
-		err := execSingleAction(act, stdOut, stdErr, data.desc)
-		if err != nil {
-			WarnDialog(fmt.Sprintf("Action '%s' step '%d' error", data.desc, i), err.Error(), mainWindow, 5)
-			return
-		}
-		if act.err != nil {
-			stdErr.Write([]byte(act.err.Error()))
-			stdErr.Write([]byte("\n"))
-			WarnDialog(fmt.Sprintf("Action '%s' step '%d' failed", data.desc, i), act.err.Error(), mainWindow, 5)
-			return
-		}
-	}
-}
 func deriveKeyFromName(name string, sa *SingleAction) (string, error) {
 	if name != "" {
 		cf, ok := model.values[name]
@@ -256,26 +240,53 @@ func deriveKeyFromName(name string, sa *SingleAction) (string, error) {
 	return "", nil
 }
 
-func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) error {
+func execMultipleAction(data *ActionData) {
+	setActionRunning(true, data.name)
+	defer setActionRunning(false, "")
+
+	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
+	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
+	for i, act := range data.commands {
+		locationMsg := fmt.Sprintf("Action '%s' step '%d'", data.desc, i)
+		err, rc := execSingleAction(act, stdOut, stdErr, data.desc)
+		if err != nil {
+			if rc == RC_SETUP {
+				WarnDialog(locationMsg, err.Error(), "", mainWindow, 10)
+				return
+			}
+			exitOsMsg := fmt.Sprintf("Exit to OS with RC=%d", rc)
+			resp := WarnDialog(locationMsg, err.Error(), exitOsMsg, mainWindow, 99)
+			if resp == 1 {
+				exitApp(fmt.Sprintf("%s. RC[%d] Error:%s", locationMsg, rc, err.Error()), rc)
+			}
+			return
+		}
+	}
+	if data.rc >= 0 {
+		exitApp("", data.rc)
+	}
+}
+
+func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) (error, int) {
 	outEncKey, err := deriveKeyFromName(sa.outPwName, sa)
 	if err != nil {
-		return err
+		return err, RC_SETUP
 	}
 	inEncKey, err := deriveKeyFromName(sa.inPwName, sa)
 	if err != nil {
-		return err
+		return err, RC_SETUP
 	}
 
 	args, err := SubstituteValuesIntoStringList(sa.args, validatedEntryDialog)
 	if err != nil {
-		return err
+		return err, RC_SETUP
 	}
 	cmd := exec.Command(sa.command, args...)
 
 	if sa.sysin != "" {
 		si, err := NewStringReader(sa.sysin, cmd.Stdin)
 		if err != nil {
-			return err
+			return err, RC_SETUP
 		}
 		siCloser, ok := si.(io.ReadCloser)
 		if ok {
@@ -311,10 +322,12 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 
 	err = cmd.Start()
 	if err != nil {
-		return err
+		return err, cmd.ProcessState.ExitCode()
 	}
-	sa.err = nil
-	sa.err = cmd.Wait()
+	err = cmd.Wait()
+	if err != nil {
+		return err, cmd.ProcessState.ExitCode()
+	}
 	if sa.delay > 0.0 {
 		time.Sleep(time.Duration(sa.delay) * time.Millisecond)
 	}
@@ -330,7 +343,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 			soE.WriteToEncryptedFile(outEncKey)
 		}
 	}
-	return nil
+	return nil, RC_CLEAN
 }
 
 func SubstituteValuesIntoStringList(s []string, entryDialog func(*InputValue) error) ([]string, error) {
@@ -346,8 +359,8 @@ func SubstituteValuesIntoStringList(s []string, entryDialog func(*InputValue) er
 }
 
 func actionClose(data string, code int) {
-	if RunAtEnd != "" {
-		action, err := model.GetActionDataForName(RunAtEnd)
+	if model.RunAtEnd != "" {
+		action, err := model.GetActionDataForName(model.RunAtEnd)
 		if err != nil {
 			exitApp(err.Error(), 1)
 		}

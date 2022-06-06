@@ -110,7 +110,7 @@ func (sr *StringReader) Read(p []byte) (n int, err error) {
 func readFile(fileName string) ([]byte, error) {
 	dat, err := os.ReadFile(fileName)
 	if err != nil {
-		return []byte{}, fmt.Errorf("failed to load file '%s' from file input definition", fileName)
+		return []byte{}, fmt.Errorf("failed to load file '%s'", fileName)
 	}
 	return dat, nil
 }

@@ -26,10 +26,8 @@ var (
 	showExit1PrefName        = parser.NewDotPath("config.showExit1")
 	runAtStartPrefName       = parser.NewDotPath("config.runAtStart")
 	runAtEndPrefName         = parser.NewDotPath("config.runAtEnd")
+	localConfigPrefName      = parser.NewDotPath("config.localConfig")
 	cacheInputFieldsPrefName = parser.NewDotPath("config.localValues")
-	ShowExit1                = false
-	RunAtStart               = ""
-	RunAtEnd                 = ""
 
 	FILE_APPEND_PREF = "append:" // Used with FileWriter to indicate an append to the file
 	CLIP_BOARD_PREF  = "clip:"   // Used with CacheWriter to indicate that the cache is written to the clipboard
@@ -49,10 +47,13 @@ type InputValue struct {
 }
 
 type Model struct {
-	fileName   string
-	root       parser.NodeC
-	actionList []*ActionData
-	values     map[string]*InputValue
+	fileName   string                 // Root config file name
+	jsonRoot   parser.NodeC           // Root Json objects
+	actionList []*ActionData          // List of actions
+	values     map[string]*InputValue // List of values
+	ShowExit1  bool                   // Show additional butten to exit with RC 1
+	RunAtStart string                 // Action to run on load
+	RunAtEnd   string                 // Action to run on exit
 }
 
 type ActionData struct {
@@ -60,6 +61,7 @@ type ActionData struct {
 	name     string
 	desc     string
 	hide     bool
+	rc       int
 	commands []*SingleAction
 }
 
@@ -71,11 +73,10 @@ type SingleAction struct {
 	inPwName   string
 	sysoutFile string
 	syserrFile string
-	err        error
 	delay      float64
 }
 
-func NewModelFromFile(fileName string) (*Model, error) {
+func NewModelFromFile(fileName string, localConfig bool) (*Model, error) {
 	j, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		return nil, err
@@ -87,7 +88,7 @@ func NewModelFromFile(fileName string) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	mod := &Model{fileName: fileName, root: configData, actionList: make([]*ActionData, 0), values: make(map[string]*InputValue)}
+	mod := &Model{fileName: fileName, jsonRoot: configData, actionList: make([]*ActionData, 0), values: make(map[string]*InputValue)}
 	err = mod.loadInputFields()
 	if err != nil {
 		return nil, err
@@ -96,10 +97,62 @@ func NewModelFromFile(fileName string) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
-	RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
-	RunAtEnd = mod.getStringWithFallback(runAtEndPrefName, "")
+	mod.ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
+	mod.RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
+	mod.RunAtEnd = mod.getStringWithFallback(runAtEndPrefName, "")
+	if localConfig {
+		localConfigFile := mod.getStringWithFallback(localConfigPrefName, "")
+		if localConfigFile != "" {
+			localMod, err := NewModelFromFile(localConfigFile, false)
+			if err == nil {
+				mod.MergeModel(localMod)
+			} else {
+				fmt.Printf("Local Config: %s", err.Error())
+			}
+		}
+	}
 	return mod, nil
+}
+
+func (m *Model) MergeModel(localMod *Model) {
+	//
+	// Merge actions
+	//
+	for i, ac := range localMod.actionList {
+		_, err := m.GetActionDataForName(ac.name)
+		if err != nil {
+			// Add NEW action
+			m.actionList = append(m.actionList, ac)
+		} else {
+			// Override Existing action
+			m.actionList[i] = ac
+		}
+	}
+	//
+	// Merge values. Replace values in map with same name
+	//
+	for n, v := range localMod.values {
+		m.values[n] = v
+	}
+	//
+	// Only override if defined in local file
+	//
+	if localMod.RunAtStart != "" {
+		m.RunAtStart = localMod.RunAtStart
+	}
+	//
+	// Only override if defined in local file
+	//
+	if localMod.RunAtEnd != "" {
+		m.RunAtEnd = localMod.RunAtEnd
+	}
+	//
+	// Only override to switch it ON
+	//
+	if localMod.ShowExit1 {
+		m.ShowExit1 = localMod.ShowExit1
+	}
+
 }
 
 func (m *Model) GetActionDataForName(name string) (*ActionData, error) {
@@ -112,7 +165,7 @@ func (m *Model) GetActionDataForName(name string) (*ActionData, error) {
 }
 
 func (m *Model) loadInputFields() error {
-	n, err := parser.Find(m.root, cacheInputFieldsPrefName)
+	n, err := parser.Find(m.jsonRoot, cacheInputFieldsPrefName)
 	if err != nil || n == nil {
 		return nil
 	}
@@ -140,7 +193,7 @@ func (m *Model) loadInputFields() error {
 }
 
 func (m *Model) loadActions() error {
-	actionListNode, err := parser.Find(m.root, actionsPrefName)
+	actionListNode, err := parser.Find(m.jsonRoot, actionsPrefName)
 	if err != nil {
 		return err
 	}
@@ -181,11 +234,17 @@ func (m *Model) loadActions() error {
 		if err != nil {
 			return err
 		}
+
+		exitCode, err := getNumberOptNode(actionNode.(parser.NodeC), "rc", -1, msg)
+		if err != nil {
+			return err
+		}
+
 		hide, err := getBoolOptNode(actionNode.(parser.NodeC), "hide", false, msg)
 		if err != nil {
 			return err
 		}
-		actionData := m.getActionData(name, tabName, desc, hide)
+		actionData := m.getActionData(name, tabName, desc, hide, int(exitCode))
 		cmdList, err := getListNode(actionNode.(parser.NodeC), "list")
 		if err != nil {
 			return fmt.Errorf("node at %s does not have a list[] node", msg)
@@ -317,7 +376,7 @@ func (m *Model) MutateListFromValues(in []string, getValue func(*InputValue) err
 }
 
 func (m *Model) getStringWithFallback(p *parser.Path, fb string) string {
-	n, err := parser.Find(m.root, p)
+	n, err := parser.Find(m.jsonRoot, p)
 	if err != nil || n == nil {
 		return fb
 	}
@@ -332,7 +391,7 @@ func (m *Model) getStringWithFallback(p *parser.Path, fb string) string {
 }
 
 func (m *Model) getIntWithFallback(p *parser.Path, fb int) int {
-	n, err := parser.Find(m.root, p)
+	n, err := parser.Find(m.jsonRoot, p)
 	if err != nil || n == nil {
 		return fb
 	}
@@ -346,7 +405,7 @@ func (m *Model) getIntWithFallback(p *parser.Path, fb int) int {
 }
 
 func (m *Model) getBoolWithFallback(p *parser.Path, fb bool) bool {
-	n, err := parser.Find(m.root, p)
+	n, err := parser.Find(m.jsonRoot, p)
 	if err != nil || n == nil {
 		return fb
 	}
@@ -357,13 +416,13 @@ func (m *Model) getBoolWithFallback(p *parser.Path, fb bool) bool {
 	return fb
 }
 
-func (p *Model) getActionData(name, tabName, desc string, hide bool) *ActionData {
+func (p *Model) getActionData(name, tabName, desc string, hide bool, exitCode int) *ActionData {
 	for _, a1 := range p.actionList {
 		if a1.name == name && a1.desc == desc {
 			return a1
 		}
 	}
-	n := NewActionData(name, tabName, desc, hide)
+	n := NewActionData(name, tabName, desc, hide, exitCode)
 	p.actionList = append(p.actionList, n)
 	return n
 }
@@ -435,8 +494,8 @@ func getStringList(node parser.NodeC, name, msg string) ([]string, error) {
 	return resp, nil
 }
 
-func NewActionData(name, tabName, desc string, hide bool) *ActionData {
-	return &ActionData{name: name, tab: tabName, desc: desc, hide: hide, commands: make([]*SingleAction, 0)}
+func NewActionData(name, tabName, desc string, hide bool, exitCode int) *ActionData {
+	return &ActionData{name: name, tab: tabName, desc: desc, rc: exitCode, hide: hide, commands: make([]*SingleAction, 0)}
 }
 
 func NewSingleAction(cmd string, args []string, input, outPwName, inPwName, outFile, errFile string, delay float64) *SingleAction {

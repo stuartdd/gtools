@@ -22,15 +22,28 @@ func NewMyDialog(in *InputValue, validate func(string, *InputValue) bool, parent
 	return &MyDialog{in: in, isValid: validate, parent: parentWindow, wait: true, err: nil}
 }
 
-func WarnDialog(title, message string, parentWindow fyne.Window, timeout int) {
+func WarnDialog(title, message, additional string, parentWindow fyne.Window, timeout int) int {
 	wait := true
+	rc := 0
 	ok := widget.NewButtonWithIcon("OK", theme.ConfirmIcon(), func() {
 		wait = false
+		rc = 0
 	})
 	ok.Importance = widget.HighImportance
+	buttons := container.NewCenter()
+	buttonsHbox := container.NewHBox()
+	buttons.Add(buttonsHbox)
+	if additional != "" {
+		extra := widget.NewButtonWithIcon(additional, theme.ErrorIcon(), func() {
+			wait = false
+			rc = 1
+		})
+		buttonsHbox.Add(extra)
+	}
+	buttonsHbox.Add(ok)
+
 	titleLab := container.NewCenter(widget.NewLabel(title))
 	messageLab := container.NewCenter(widget.NewLabel(message))
-	buttons := container.NewCenter(ok)
 
 	border := container.NewBorder(titleLab, buttons, nil, nil, messageLab)
 	popup := widget.NewModalPopUp(border, parentWindow.Canvas())
@@ -41,9 +54,11 @@ func WarnDialog(title, message string, parentWindow fyne.Window, timeout int) {
 		tout--
 		if tout == 0 {
 			wait = false
+			rc = 9
 		}
 	}
 	popup.Hide()
+	return rc
 }
 
 func (d *MyDialog) commit(s string) {

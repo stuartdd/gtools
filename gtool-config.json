@@ -1,10 +1,11 @@
 {
     "config": {
         "showExit1": false,
+        "localConfig": "test-config.json",
         "localValues": {
             "commitMessage": {
                 "desc": "Commit message",
-                "value": "commit",
+                "value": "Local commit",
                 "input": true
             },
             "password1": {
@@ -33,15 +34,24 @@
             ]
         },
         {
-            "tab":"N:Le",
             "name": "Read Enc",
             "desc": "Read an encrypted file",
             "list": [
                 {
                     "cmd": "cat",
                     "args": [],
-                    "in": "file:encFile.txt",
-                    "inPwName": "password1"
+                    "in": "file:encdFile.txt"
+                }
+            ]
+        },
+        {
+            "name": "Ret RC",
+            "desc": "Return Specific RC",
+            "rc" : 2,
+            "list": [
+                {
+                    "cmd": "./retrc",
+                    "args": [9]
                 }
             ]
         }

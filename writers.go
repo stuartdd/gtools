@@ -205,7 +205,7 @@ func (fw *FileWriter) Write(p []byte) (n int, err error) {
 		}
 		_, err = fw.file.Write(p)
 		if err != nil {
-			fw.stdErr.Write([]byte(fmt.Sprintf("Write Error. File:%s. Err:%s\n", fw.fileName, err.Error())))
+			fw.stdErr.Write([]byte(fmt.Sprintf("Write Error. File:%s.\nErr:%s", fw.fileName, err.Error())))
 		} else {
 			return pLen, nil
 		}
