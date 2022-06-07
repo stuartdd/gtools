@@ -68,6 +68,15 @@ func main() {
 	gui()
 }
 
+func warningAtStart() {
+	if model.warning != "" {
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			WarnDialog("Data Load Error", model.warning, "", mainWindow, 9)
+		}()
+	}
+}
+
 func runAtStart() {
 	action, err := model.GetActionDataForName(model.RunAtStart)
 	if err != nil {
@@ -94,6 +103,7 @@ func gui() {
 	mainWindow.SetTitle("Data file:" + model.fileName)
 	mainWindow.Resize(fyne.NewSize(300, 100))
 	mainWindow.SetFixedSize(true)
+	warningAtStart()
 	mainWindow.ShowAndRun()
 }
 
@@ -248,7 +258,7 @@ func execMultipleAction(data *ActionData) {
 	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
 	for i, act := range data.commands {
 		locationMsg := fmt.Sprintf("Action '%s' step '%d'", data.desc, i)
-		err, rc := execSingleAction(act, stdOut, stdErr, data.desc)
+		rc, err := execSingleAction(act, stdOut, stdErr, data.desc)
 		if err != nil {
 			if rc == RC_SETUP {
 				WarnDialog(locationMsg, err.Error(), "", mainWindow, 10)
@@ -267,26 +277,26 @@ func execMultipleAction(data *ActionData) {
 	}
 }
 
-func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) (error, int) {
+func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) (int, error) {
 	outEncKey, err := deriveKeyFromName(sa.outPwName, sa)
 	if err != nil {
-		return err, RC_SETUP
+		return RC_SETUP, err
 	}
 	inEncKey, err := deriveKeyFromName(sa.inPwName, sa)
 	if err != nil {
-		return err, RC_SETUP
+		return RC_SETUP, err
 	}
 
 	args, err := SubstituteValuesIntoStringList(sa.args, validatedEntryDialog)
 	if err != nil {
-		return err, RC_SETUP
+		return RC_SETUP, err
 	}
 	cmd := exec.Command(sa.command, args...)
 
 	if sa.sysin != "" {
 		si, err := NewStringReader(sa.sysin, cmd.Stdin)
 		if err != nil {
-			return err, RC_SETUP
+			return RC_SETUP, err
 		}
 		siCloser, ok := si.(io.ReadCloser)
 		if ok {
@@ -322,11 +332,11 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 
 	err = cmd.Start()
 	if err != nil {
-		return err, cmd.ProcessState.ExitCode()
+		return cmd.ProcessState.ExitCode(), err
 	}
 	err = cmd.Wait()
 	if err != nil {
-		return err, cmd.ProcessState.ExitCode()
+		return cmd.ProcessState.ExitCode(), err
 	}
 	if sa.delay > 0.0 {
 		time.Sleep(time.Duration(sa.delay) * time.Millisecond)
@@ -343,7 +353,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 			soE.WriteToEncryptedFile(outEncKey)
 		}
 	}
-	return nil, RC_CLEAN
+	return RC_CLEAN, nil
 }
 
 func SubstituteValuesIntoStringList(s []string, entryDialog func(*InputValue) error) ([]string, error) {

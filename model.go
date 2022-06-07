@@ -54,6 +54,7 @@ type Model struct {
 	ShowExit1  bool                   // Show additional butten to exit with RC 1
 	RunAtStart string                 // Action to run on load
 	RunAtEnd   string                 // Action to run on exit
+	warning    string                 // If the model loads dut with warnings
 }
 
 type ActionData struct {
@@ -88,7 +89,7 @@ func NewModelFromFile(fileName string, localConfig bool) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	mod := &Model{fileName: fileName, jsonRoot: configData, actionList: make([]*ActionData, 0), values: make(map[string]*InputValue)}
+	mod := &Model{fileName: fileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), values: make(map[string]*InputValue)}
 	err = mod.loadInputFields()
 	if err != nil {
 		return nil, err
@@ -107,7 +108,7 @@ func NewModelFromFile(fileName string, localConfig bool) (*Model, error) {
 			if err == nil {
 				mod.MergeModel(localMod)
 			} else {
-				fmt.Printf("Local Config: %s", err.Error())
+				mod.warning = err.Error()
 			}
 		}
 	}
