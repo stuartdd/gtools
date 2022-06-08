@@ -30,7 +30,10 @@ Full definition of all valid fields:
 {
     "config": {
         "showExit1": false,
-        "cachedFields": {
+        "runAtStart":"Start Code",
+        "runAtEnd":"Clean up",
+        "localConfig": "gtool-config.json",
+        "localValues": {
             "commitMessage": {
                 "desc": "Commit message",
                 "default": "commit",
@@ -40,6 +43,8 @@ Full definition of all valid fields:
     },
     "actions": [
         {
+            "tab": "tab1",
+            "rc": 1,
             "name": "Start Code",
             "desc": "Start the dev environment",
             "hide": false,
@@ -61,7 +66,9 @@ Full definition of all valid fields:
 | config | Contains global config data | optional |
 | config.showExit1 | true \| false Show the Close(1) button. App exit with return code | optional = false |
 | config.runAtStart | Run action at startup. If "" then no action is taken | optional = "" |
-| config.cachedFields | Contains a list of cached fields for substitution in args. See CachedFields below | optional |
+| config.runAtEnd | Run action before exit. If "" then no action is taken | optional = "" |
+| config.localValues | Contains a list of cached fields for substitution in args. See 'Local Values' below | optional |
+| config.localConfig | Read additional configuration data from a file. Contents overrieds main file | optional |
 | actions | Contains All actions. See Actions below| mandatory |
 
 ### Actions
@@ -105,6 +112,8 @@ Form 2 is as JSON ojects. In this case the actions are displayed in alphabetical
 Each individual action is defined as follows:
 
 ```json
+"hide": true,
+"rc" : 1,
 "name": "Start VSCode",
 "desc": "Start the dev environment",
 "hide": false
@@ -115,6 +124,8 @@ Each individual action is defined as follows:
             "."
         ],
         "in": "",
+        "inPwName": "",
+        "outPwName": "",
         "outFile": "",
         "outFilter": "",
         "errFile": "",
@@ -129,6 +140,7 @@ Each individual action is defined as follows:
 | desc | Defined the value displayed along side the action button | required |
 | hide | if true will not display a button. Used with runAtStart | optional = false |
 | list | Defines a number of commands to be run one after the other | required |
+| rc | Once the list of actions is complete, Exit the application with the return code given | Optional |
 
 ### Commands (cmd)
 
@@ -139,7 +151,9 @@ Each command has the following fields:
 | cmd | the command to be run (excluding any arguments). E.g. ls | required |
 | args | A String list of arguments. E.g. '-lta' See Agrs below | required |
 | in | Input to the sysin stream if a cmd requires it. See In Filters below | optional = "" |
+| inPwName | The name of the localValue that holds tha value of the password used to decrypt the 'in' (sysin) stream. Note 'in' cannot be empty. | optional = "" |
 | outFile | Output from stdout will be written here. See Output below | optional = "" |
+| outPwName | The name of the localValue that holds tha value of the password used to encrypt the 'outFile' (sysout) stream. Note 'outFile' cannot be empty. | optional = "" |
 | outFilter | Filter the output using Selects. See Out Filters below | optional = "" |
 | errFile | Output from stderr will be written here. See Output below | optional = "" | optional = "" |
 | delay | Delay between each cmd in Milli Seconds. 1000 = 1 second| optional = 0 | optional = "" |
@@ -173,10 +187,10 @@ There are two sources:
 
 The sysout from the command is optionally filtered  (see Out Filters below) and stored in a cache with the name 'myvar'
 
-2: The result of a 'cachedFields' entry defined in the 'config' section of the config file.
+2: The result of a 'localValues' entry defined in the 'config' section of the config file.
 
 ```json
-"cachedFields": {
+"localValues": {
     "commitMessage": {
         "desc": "Commit message",
         "default": "commit"
@@ -295,7 +309,7 @@ The filters function in exactly the same way as the out filters. See above.
 | "memory:xxy|filter1,=,1,:|filter2" | The sysin stream will be returned from the memory cache with the name 'xxy' filtered |
 | "file:a/file.txt|filter1,=,1,:|filter2" | The sysin stream will be returned from the contents of the file 'a/file.txt' filtered |
 
-### CachedFields
+### Local Values
 
 ---
 
@@ -306,7 +320,7 @@ These are substituted using %{fieldName} data elements.
 They can be input at the start of an action or defined in the config data.
 
 ``` json
-"cachedFields": {
+"localValues": {
     "commitMessage": {
         "desc": "Commit message",
         "default": "commit",
@@ -315,10 +329,68 @@ They can be input at the start of an action or defined in the config data.
 }
 ```
 
-In the above extract 'commitMessage' is the name of the field.
+In the above extract 'commitMessage' is the {name} of the field.
 
 | Field name      | Description | optional |
 | ----------- | ----------- | --------- |
-| cachedFields.{name}.desc | Description used for field input | required |
-| cachedFields.{name}.default | The default value for the field. This is updated if the field is input in the UI | required |
-| cachedFields.{name}.input | true \| false. Input the field before running the action | optional false |
+| localValues.{name}.desc | Description used for field input | required |
+| localValues.{name}.default | The default value for the field. This is updated if the field is input in the UI | required |
+| localValues.{name}.input | true \| false. Input the field in a dialog (once) before running the action | optional=false |
+| localValues.{name}.minLen | Input the field in a dialog (once) with a minimum length | optional |
+| localValues.{name}.isPassword | Input the field in a dialog (once) treated as a password | optional |
+
+### Encryption and Decryption
+
+A local value is required for encryption and decryption. The name if refered to in the 'in' or 'outFile' definition.
+
+``` json
+"localValues": {
+    "myPw1": {
+        "desc": "Password 1",
+        "input": true,
+        "value": "",
+        "minLen": 5,
+        "isPassword": true
+    }
+}
+```
+
+### Encryption (outFile)
+
+The system output will be written to a file and encrypted using the password (key) defined in the local value.
+
+``` json
+{
+    "cmd": "git",
+    "args": [
+        "config",
+        "-l"
+    ],
+    "outFile": "encFile.txt",
+    "outPwName": "myPw1"
+}
+ ```
+
+The output from the command 'git config -l' will be writen to the 'encFile.txt' encrypted with the password defined in local value 'myPw1'.
+
+Before the command is run a password entry dialog will be presented for entry of the password. Once entered the value is retained for all further use of the local value 'myPw1'.
+
+### Decryption (in)
+
+The system input (sysin) will be read from file 'encdFile.txt' and decrypted using the password (key) defined in the local value.
+
+``` json
+{
+    "name": "Read Enc",
+    "desc": "Read an encrypted file",
+    "list": [
+        {
+            "cmd": "cat",
+            "args": [],
+            "in": "file:encdFile.txt"
+        }
+    ]
+}
+```
+
+Before the command is run a password entry dialog will be presented for entry of the password. Once entered the value is retained for all further use of the local value 'myPw1'.
