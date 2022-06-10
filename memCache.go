@@ -24,5 +24,8 @@ func MutateStringFromMemCache(in string) string {
 	for n, v := range memoryMap {
 		out = strings.ReplaceAll(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(v.GetContent()))
 	}
+	for n, v := range envMap {
+		out = strings.ReplaceAll(out, fmt.Sprintf("%%{%s}", n), strings.TrimSpace(v))
+	}
 	return out
 }

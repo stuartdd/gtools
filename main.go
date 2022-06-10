@@ -26,8 +26,10 @@ const (
 )
 
 var (
+	envMap             map[string]string
 	stdColourPrefix    = []string{GREEN, RED}
 	mainWindow         fyne.Window
+	selectedTabIndex   int = -1
 	model              *Model
 	actionRunning      bool = false
 	actionRunningLabel *widget.Label
@@ -42,15 +44,24 @@ type ActionButton struct {
 func main() {
 	var err error
 	var path string
-	if len(os.Args) == 1 {
-		path, err = os.UserHomeDir()
-		if err != nil {
-			exitApp(err.Error(), 1)
+	envMap = make(map[string]string)
+	for _, e := range os.Environ() {
+		pair := strings.SplitN(e, "=", 2)
+		if len(pair) == 2 {
+			envMap[pair[0]] = pair[1]
 		}
-		path = path + string(os.PathSeparator) + "gtool-config.json"
-		model, err = NewModelFromFile(path, true)
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		exitApp(err.Error(), 1)
+	}
+
+	if len(os.Args) == 1 {
+		path = homeDir + string(os.PathSeparator) + "gtool-config.json"
+		model, err = NewModelFromFile(homeDir, path, true)
 	} else {
-		model, err = NewModelFromFile(os.Args[1], true)
+		model, err = NewModelFromFile(homeDir, os.Args[1], true)
 	}
 	if err != nil {
 		exitApp(err.Error(), 1)
@@ -83,7 +94,11 @@ func runAtStart() {
 		exitApp(fmt.Sprintf("RunAtStart: %s", err.Error()), 1)
 	}
 	go func() {
-		time.Sleep(time.Second)
+		if model.RunAtStartDelay >= 0 {
+			time.Sleep(time.Duration(model.RunAtStartDelay) * time.Millisecond)
+		} else {
+			time.Sleep(time.Duration(500 * time.Millisecond))
+		}
 		execMultipleAction(action)
 		go func() {
 			time.Sleep(time.Second)
@@ -124,30 +139,35 @@ func update() {
 	bb := buttonBar(action)
 	tabs, singleName := model.GetTabs()
 	if len(tabs) > 1 {
-		cp, _ := centerPanelTabbed(tabs)
-		c = container.NewBorder(bb, nil, nil, nil, cp)
+		tabs := centerPanelTabbed(tabs)
+		if selectedTabIndex >= 0 {
+			tabs.SelectIndex(selectedTabIndex)
+		}
+		tabs.OnSelected = func(ti *container.TabItem) {
+			selectedTabIndex = tabs.SelectedIndex()
+		}
+		c = container.NewBorder(bb, nil, nil, nil, tabs)
 	} else {
-		cp, _ := centerPanel(tabs[singleName])
+		selectedTabIndex = -1
+		cp := centerPanel(tabs[singleName])
 		c = container.NewBorder(bb, nil, nil, nil, cp)
 	}
 	mainWindow.SetContent(c)
 }
 
-func centerPanelTabbed(actionsByTab map[string][]*ActionData) (*container.AppTabs, error) {
+func centerPanelTabbed(actionsByTab map[string][]*ActionData) *container.AppTabs {
 	tabs := container.NewAppTabs()
-
 	names := make([]string, 0)
 	for name := range actionsByTab {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-
 	for _, name := range names {
-		cp, _ := centerPanel(actionsByTab[name])
+		cp := centerPanel(actionsByTab[name])
 		ti := container.NewTabItem(getNameAfterTag(name), cp)
 		tabs.Append(ti)
 	}
-	return tabs, nil
+	return tabs
 }
 
 func getNameAfterTag(in string) string {
@@ -158,7 +178,7 @@ func getNameAfterTag(in string) string {
 	return in
 }
 
-func centerPanel(actionData []*ActionData) (*fyne.Container, error) {
+func centerPanel(actionData []*ActionData) *fyne.Container {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
 	min := 3
@@ -171,7 +191,11 @@ func centerPanel(actionData []*ActionData) (*fyne.Container, error) {
 				}
 			}, l)
 			hp.Add(btn)
-			hp.Add(widget.NewLabel(MutateStringFromMemCache(l.desc)))
+			lab, err := SubstituteValuesIntoString(l.desc, nil)
+			if err != nil {
+				lab = l.desc
+			}
+			hp.Add(widget.NewLabel(lab))
 			vp.Add(hp)
 			min--
 		}
@@ -180,7 +204,7 @@ func centerPanel(actionData []*ActionData) (*fyne.Container, error) {
 		vp.Add(container.NewHBox(widget.NewLabel("")))
 		min--
 	}
-	return vp, nil
+	return vp
 }
 
 func buttonBar(exec func(string, string, string)) *fyne.Container {
@@ -194,7 +218,7 @@ func buttonBar(exec func(string, string, string)) *fyne.Container {
 		}))
 	}
 	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
-		m, err := NewModelFromFile(model.fileName, true)
+		m, err := NewModelFromFile(model.homePath, model.fileName, true)
 		if err != nil {
 			fmt.Printf("Failed to reload")
 		} else {
@@ -228,7 +252,19 @@ func action(exec, data1, data2 string) {
 func validatedEntryDialog(localValue *InputValue) error {
 	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
 		return len(strings.TrimSpace(s)) >= iv.minLen
-	}, mainWindow).Run().err
+	}, mainWindow).Run(VALUE_DIALOG_TYPE).err
+}
+
+func sysInDialog(localValue *InputValue) error {
+	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
+		return true
+	}, mainWindow).Run(SYSIN_DIALOG_TYPE).err
+}
+
+func sysOutDialog(localValue *InputValue) error {
+	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
+		return true
+	}, mainWindow).Run(SYSOUT_DIALOG_TYPE).err
 }
 
 func deriveKeyFromName(name string, sa *SingleAction) (string, error) {
@@ -275,6 +311,7 @@ func execMultipleAction(data *ActionData) {
 	if data.rc >= 0 {
 		exitApp("", data.rc)
 	}
+	update()
 }
 
 func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) (int, error) {
@@ -286,15 +323,18 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	if err != nil {
 		return RC_SETUP, err
 	}
-
-	args, err := SubstituteValuesIntoStringList(sa.args, validatedEntryDialog)
+	args, err := SubstituteValuesIntoArgs(sa.args, validatedEntryDialog)
 	if err != nil {
 		return RC_SETUP, err
 	}
 	cmd := exec.Command(sa.command, args...)
 
 	if sa.sysin != "" {
-		si, err := NewStringReader(sa.sysin, cmd.Stdin)
+		tmp, err := SubstituteValuesIntoString(sa.sysin, sysInDialog)
+		if err != nil {
+			return RC_SETUP, err
+		}
+		si, err := NewStringReader(tmp, cmd.Stdin)
 		if err != nil {
 			return RC_SETUP, err
 		}
@@ -308,7 +348,11 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		}
 		cmd.Stdin = si
 	}
-	so := NewWriter(sa.sysoutFile, outEncKey, stdOut, stdErr)
+	tmpOut, err := SubstituteValuesIntoString(sa.sysoutFile, sysOutDialog)
+	if err != nil {
+		return RC_SETUP, err
+	}
+	so := NewWriter(tmpOut, outEncKey, stdOut, stdErr)
 	soReset, reSoOk := so.(Reset)
 	if reSoOk {
 		soReset.Reset()
@@ -319,7 +363,11 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	}
 	cmd.Stdout = so
 
-	se := NewWriter(sa.syserrFile, outEncKey, stdErr, stdErr)
+	tmpErr, err := SubstituteValuesIntoString(sa.syserrFile, sysOutDialog)
+	if err != nil {
+		return RC_SETUP, err
+	}
+	se := NewWriter(tmpErr, outEncKey, stdErr, stdErr)
 	seReset, reSeOk := se.(Reset)
 	if reSeOk {
 		seReset.Reset()
@@ -356,16 +404,27 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	return RC_CLEAN, nil
 }
 
-func SubstituteValuesIntoStringList(s []string, entryDialog func(*InputValue) error) ([]string, error) {
+func SubstituteValuesIntoArgs(s []string, entryDialog func(*InputValue) error) ([]string, error) {
 	resp := make([]string, 0)
 	for _, v := range s {
-		tmp, err := model.MutateStringFromValues(v, entryDialog)
+		tmp, err := SubstituteValuesIntoString(v, entryDialog)
 		if err != nil {
 			return nil, err
 		}
-		resp = append(resp, MutateStringFromMemCache(tmp))
+		resp = append(resp, tmp)
 	}
 	return resp, nil
+}
+
+func SubstituteValuesIntoString(s string, entryDialog func(*InputValue) error) (string, error) {
+	var tmp string
+	var err error
+	tmp, err = model.MutateStringFromLocalValues(s, entryDialog)
+	if err != nil {
+		return "", err
+	}
+	tmp = MutateStringFromMemCache(tmp)
+	return tmp, nil
 }
 
 func actionClose(data string, code int) {

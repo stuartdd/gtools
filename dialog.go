@@ -2,27 +2,39 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
+type ENUM_ENTRY_TYPE int
+
+const (
+	SYSOUT_DIALOG_TYPE ENUM_ENTRY_TYPE = iota
+	SYSIN_DIALOG_TYPE
+	VALUE_DIALOG_TYPE
+)
+
 type MyDialog struct {
-	in      *InputValue
+	value   *InputValue
 	parent  fyne.Window
 	wait    bool
 	err     error
 	isValid func(string, *InputValue) bool
 }
 
-func NewMyDialog(in *InputValue, validate func(string, *InputValue) bool, parentWindow fyne.Window) *MyDialog {
-	return &MyDialog{in: in, isValid: validate, parent: parentWindow, wait: true, err: nil}
+func NewMyDialog(value *InputValue, validate func(string, *InputValue) bool, parentWindow fyne.Window) *MyDialog {
+	return &MyDialog{value: value, isValid: validate, parent: parentWindow, wait: true, err: nil}
 }
 
 func WarnDialog(title, message, additional string, parentWindow fyne.Window, timeout int) int {
+	message = strings.ReplaceAll(message, "'. ", "'.\n")
 	wait := true
 	rc := 0
 	ok := widget.NewButtonWithIcon("OK", theme.ConfirmIcon(), func() {
@@ -62,8 +74,8 @@ func WarnDialog(title, message, additional string, parentWindow fyne.Window, tim
 }
 
 func (d *MyDialog) commit(s string) {
-	d.in.value = s
-	d.in.inputDone = true
+	d.value.value = s
+	d.value.inputDone = true
 	d.wait = false
 }
 
@@ -76,7 +88,7 @@ func (d *MyDialog) callIsValid(s string) bool {
 	if d.isValid == nil {
 		return true
 	}
-	return d.isValid(s, d.in)
+	return d.isValid(s, d.value)
 }
 
 func (d *MyDialog) onChange(s string, ok *widget.Button) {
@@ -87,12 +99,53 @@ func (d *MyDialog) onChange(s string, ok *widget.Button) {
 	}
 }
 
-func (d *MyDialog) Run() *MyDialog {
+func (d *MyDialog) Run(dt ENUM_ENTRY_TYPE) *MyDialog {
+	if d.value.isFileName {
+		if dt == SYSOUT_DIALOG_TYPE {
+			fd := dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
+				if uc == nil {
+					d.abort("output file not selected")
+				} else {
+					d.commit(uc.URI().Path())
+					d.value.lastValue = filepath.Dir(uc.URI().Path())
+				}
+			}, d.parent)
+			l, err := d.value.GetLastValueAsLocation()
+			if err != nil {
+				d.abort(err.Error())
+				return d
+			}
+			fd.SetLocation(l)
+			fd.Show()
+		} else {
+			fd := dialog.NewFileOpen(func(uc fyne.URIReadCloser, err error) {
+				if uc == nil {
+					d.abort("input file not selected")
+				} else {
+					d.commit(uc.URI().Path())
+					d.value.lastValue = filepath.Dir(uc.URI().Path())
+				}
+			}, d.parent)
+			l, err := d.value.GetLastValueAsLocation()
+			if err != nil {
+				d.abort(err.Error())
+				return d
+			}
+			fd.SetLocation(l)
+			fd.Show()
+		}
+		d.wait = true
+		for d.wait {
+			time.Sleep(200 * time.Millisecond)
+		}
+		return d
+	}
+
 	entry := widget.NewEntry()
-	if d.in.isPassword {
+	if d.value.isPassword {
 		entry = widget.NewPasswordEntry()
 	}
-	entry.SetText(d.in.value)
+	entry.SetText(d.value.value)
 	entry.OnSubmitted = func(s string) {
 		if d.callIsValid(entry.Text) {
 			d.commit(entry.Text)
@@ -114,8 +167,8 @@ func (d *MyDialog) Run() *MyDialog {
 	d.onChange(entry.Text, ok)
 
 	min := ""
-	if d.in.minLen > 0 {
-		min = fmt.Sprintf(". (minimum %d chars)", d.in.minLen)
+	if d.value.minLen > 0 {
+		min = fmt.Sprintf(". (minimum %d chars)", d.value.minLen)
 	}
 	hBox := container.NewHBox()
 	hBox.Add(widget.NewLabel("    "))
@@ -124,7 +177,7 @@ func (d *MyDialog) Run() *MyDialog {
 	hBox.Add(ok)
 	hBox.Add(widget.NewLabel("    "))
 	buttons := container.NewCenter(hBox)
-	label := container.NewCenter(widget.NewLabel(fmt.Sprintf("Input %s%s", d.in.desc, min)))
+	label := container.NewCenter(widget.NewLabel(fmt.Sprintf("Input %s%s", d.value.desc, min)))
 	border := container.NewBorder(label, buttons, nil, nil, entry)
 
 	popup := widget.NewModalPopUp(border, d.parent.Canvas())

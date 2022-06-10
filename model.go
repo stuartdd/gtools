@@ -3,8 +3,11 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/storage"
 	"github.com/stuartdd2/JsonParser4go/parser"
 )
 
@@ -25,6 +28,7 @@ var (
 	actionsPrefName          = parser.NewDotPath("actions")
 	showExit1PrefName        = parser.NewDotPath("config.showExit1")
 	runAtStartPrefName       = parser.NewDotPath("config.runAtStart")
+	runAtStartDelayPrefName  = parser.NewDotPath("config.runAtStartDelay")
 	runAtEndPrefName         = parser.NewDotPath("config.runAtEnd")
 	localConfigPrefName      = parser.NewDotPath("config.localConfig")
 	cacheInputFieldsPrefName = parser.NewDotPath("config.localValues")
@@ -40,21 +44,25 @@ type InputValue struct {
 	name          string
 	desc          string
 	value         string
+	lastValue     string // Use by FileSave and FileOpen as that last location used
 	minLen        int
 	isPassword    bool
+	isFileName    bool
 	inputDone     bool
 	inputRequired bool
 }
 
 type Model struct {
-	fileName   string                 // Root config file name
-	jsonRoot   parser.NodeC           // Root Json objects
-	actionList []*ActionData          // List of actions
-	values     map[string]*InputValue // List of values
-	ShowExit1  bool                   // Show additional butten to exit with RC 1
-	RunAtStart string                 // Action to run on load
-	RunAtEnd   string                 // Action to run on exit
-	warning    string                 // If the model loads dut with warnings
+	homePath        string                 // Users home directory!
+	fileName        string                 // Root config file name
+	jsonRoot        parser.NodeC           // Root Json objects
+	actionList      []*ActionData          // List of actions
+	values          map[string]*InputValue // List of values
+	ShowExit1       bool                   // Show additional butten to exit with RC 1
+	RunAtStart      string                 // Action to run on load
+	RunAtStartDelay int                    // Run at start waits this number of milliseconds
+	RunAtEnd        string                 // Action to run on exit
+	warning         string                 // If the model loads dut with warnings
 }
 
 type ActionData struct {
@@ -77,7 +85,7 @@ type SingleAction struct {
 	delay      float64
 }
 
-func NewModelFromFile(fileName string, localConfig bool) (*Model, error) {
+func NewModelFromFile(home, fileName string, localConfig bool) (*Model, error) {
 	j, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		return nil, err
@@ -89,7 +97,7 @@ func NewModelFromFile(fileName string, localConfig bool) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	mod := &Model{fileName: fileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), values: make(map[string]*InputValue)}
+	mod := &Model{homePath: home, fileName: fileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), values: make(map[string]*InputValue)}
 	err = mod.loadInputFields()
 	if err != nil {
 		return nil, err
@@ -100,11 +108,12 @@ func NewModelFromFile(fileName string, localConfig bool) (*Model, error) {
 	}
 	mod.ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
 	mod.RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
+	mod.RunAtStartDelay = mod.getIntWithFallback(runAtStartDelayPrefName, -1)
 	mod.RunAtEnd = mod.getStringWithFallback(runAtEndPrefName, "")
 	if localConfig {
 		localConfigFile := mod.getStringWithFallback(localConfigPrefName, "")
 		if localConfigFile != "" {
-			localMod, err := NewModelFromFile(localConfigFile, false)
+			localMod, err := NewModelFromFile(home, localConfigFile, false)
 			if err == nil {
 				mod.MergeModel(localMod)
 			} else {
@@ -141,6 +150,9 @@ func (m *Model) MergeModel(localMod *Model) {
 	if localMod.RunAtStart != "" {
 		m.RunAtStart = localMod.RunAtStart
 	}
+	if localMod.RunAtStartDelay > 0 {
+		m.RunAtStartDelay = localMod.RunAtStartDelay
+	}
 	//
 	// Only override if defined in local file
 	//
@@ -172,22 +184,27 @@ func (m *Model) loadInputFields() error {
 	}
 	no, ok := n.(*parser.JsonObject)
 	if !ok {
-		return fmt.Errorf("element '%s' in the config file '%s' is not an Object node", cacheInputFieldsPrefName, m.fileName)
+		return fmt.Errorf("element '%s'. In the config file '%s'. Is not an Object node", cacheInputFieldsPrefName, m.fileName)
 	}
 	for _, v := range no.GetValues() {
 		name := v.GetName()
 		if v.GetNodeType() != parser.NT_OBJECT {
-			return fmt.Errorf("element '%s.%s' in the config file '%s' is not an Object node", cacheInputFieldsPrefName, name, m.fileName)
+			return fmt.Errorf("element '%s.%s'. In the config file '%s'. Is not an Object node", cacheInputFieldsPrefName, name, m.fileName)
 		}
 		desc := m.getStringWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("desc"), "")
 		if desc == "" {
-			return fmt.Errorf("element '%s.%s.desc' in the config file '%s' not found or not a string", cacheInputFieldsPrefName, name, m.fileName)
+			return fmt.Errorf("element '%s.%s.desc'. In the config file '%s'. Not found or not a string", cacheInputFieldsPrefName, name, m.fileName)
 		}
 		defaultVal := m.getStringWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("value"), "")
 		inputRequired := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("input"), false)
 		minLen := m.getIntWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("minLen"), 1)
 		isPassword := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("isPassword"), false)
-		v := &InputValue{name: name, desc: desc, value: defaultVal, minLen: minLen, isPassword: isPassword, inputDone: false, inputRequired: inputRequired}
+		isFileName := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("isFileName"), false)
+		if isPassword && isFileName {
+			return fmt.Errorf("element '%s.%s.desc'. In the config file '%s'. Cannot be both a password and a filename", cacheInputFieldsPrefName, name, m.fileName)
+		}
+		lastVal := ""
+		v := &InputValue{name: name, desc: desc, value: defaultVal, minLen: minLen, lastValue: lastVal, isPassword: isPassword, isFileName: isFileName, inputDone: false, inputRequired: inputRequired}
 		m.values[name] = v
 	}
 	return nil
@@ -347,31 +364,21 @@ func (m *Model) len() int {
 	return len(m.actionList)
 }
 
-func (m *Model) MutateStringFromValues(in string, getValue func(*InputValue) error) (string, error) {
+func (m *Model) MutateStringFromLocalValues(in string, getValue func(*InputValue) error) (string, error) {
 	out := in
 	for n, v := range m.values {
 		rep := fmt.Sprintf("%%{%s}", n)
 		if strings.Contains(in, rep) {
-			if !v.inputDone && v.inputRequired {
-				err := getValue(v)
-				if err != nil {
-					return "", err
+			if getValue != nil {
+				if !v.inputDone && v.inputRequired {
+					err := getValue(v)
+					if err != nil {
+						return "", err
+					}
 				}
 			}
 			out = strings.Replace(out, rep, strings.TrimSpace(v.value), -1)
 		}
-	}
-	return out, nil
-}
-
-func (m *Model) MutateListFromValues(in []string, getValue func(*InputValue) error) ([]string, error) {
-	out := make([]string, 0)
-	for _, a := range in {
-		val, err := m.MutateStringFromValues(a, getValue)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, val)
 	}
 	return out, nil
 }
@@ -510,4 +517,22 @@ func (p *ActionData) AddSingleAction(cmd string, data []string, input, outPwName
 
 func (p *ActionData) len() int {
 	return len(p.commands)
+}
+
+func (v *InputValue) GetLastValueAsLocation() (fyne.ListableURI, error) {
+	if v.lastValue == "" {
+		d, err := os.Getwd()
+		if err == nil {
+			v.lastValue = d
+		}
+	}
+	u, err := storage.ParseURI("file://" + v.lastValue)
+	if err != nil {
+		return nil, err
+	}
+	l, err := storage.ListerForURI(u)
+	if err != nil {
+		return nil, err
+	}
+	return l, nil
 }

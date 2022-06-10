@@ -31,6 +31,7 @@ Full definition of all valid fields:
     "config": {
         "showExit1": false,
         "runAtStart":"Start Code",
+        "runAtStartDelay":100,
         "runAtEnd":"Clean up",
         "localConfig": "gtool-config.json",
         "localValues": {
@@ -66,6 +67,7 @@ Full definition of all valid fields:
 | config | Contains global config data | optional |
 | config.showExit1 | true \| false Show the Close(1) button. App exit with return code | optional = false |
 | config.runAtStart | Run action at startup. If "" then no action is taken | optional = "" |
+| config.runAtStartDelay | Run action at startup after n milliseconds | optional = 500 |
 | config.runAtEnd | Run action before exit. If "" then no action is taken | optional = "" |
 | config.localValues | Contains a list of cached fields for substitution in args. See 'Local Values' below | optional |
 | config.localConfig | Read additional configuration data from a file. Contents overrieds main file | optional |
@@ -338,6 +340,7 @@ In the above extract 'commitMessage' is the {name} of the field.
 | localValues.{name}.input | true \| false. Input the field in a dialog (once) before running the action | optional=false |
 | localValues.{name}.minLen | Input the field in a dialog (once) with a minimum length | optional |
 | localValues.{name}.isPassword | Input the field in a dialog (once) treated as a password | optional |
+| localValues.{name}.isFileName | Input the field in a dialog (once) treated as a file name | optional |
 
 ### Encryption and Decryption
 

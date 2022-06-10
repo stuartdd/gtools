@@ -14,6 +14,12 @@
                 "value": "",
                 "minLen": 5,
                 "isPassword": true
+            },
+            "tempFile": {
+                "desc": "Temp File",
+                "input": true,
+                "value": "",
+                "isFileName": true
             }
         }
     },
@@ -24,7 +30,7 @@
             "list": [
                 {
                     "cmd": "git",
-                    "outFile": "encFile.txt",
+                    "outFile": "%{tempFile}",
                     "args": [
                         "config",
                         "-l"
@@ -40,18 +46,18 @@
                 {
                     "cmd": "cat",
                     "args": [],
-                    "in": "file:encdFile.txt"
+                    "in": "file:%{tempFile}",
+                    "inPwName" : "password1"
                 }
             ]
         },
         {
-            "name": "Ret RC",
-            "desc": "Return Specific RC",
-            "rc" : 2,
+            "name": "Remove",
+            "desc": "Remove '%{tempFile}'",
             "list": [
                 {
-                    "cmd": "./retrc",
-                    "args": [9]
+                    "cmd": "rm",
+                    "args": ["%{tempFile}"]
                 }
             ]
         }
