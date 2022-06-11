@@ -40,6 +40,31 @@
             ]
         },
         {
+            "name": "HTTP Get",
+            "desc": "Read a message from server",
+            "list": [
+                {
+                    "cmd": "cat",
+                    "in": "http:http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/xxx.data",
+                    "args": []
+                }
+            ]
+        },
+        {
+            "name": "HTTP Post",
+            "desc": "Read a message from server",
+            "list": [
+                {
+                    "cmd": "git",
+                    "args": [
+                        "config",
+                        "-l"
+                    ],
+                    "outFile": "http:http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/xxx.data"
+                }
+            ]
+        },
+        {
             "name": "Read Enc",
             "desc": "Read an encrypted file",
             "list": [
@@ -47,7 +72,7 @@
                     "cmd": "cat",
                     "args": [],
                     "in": "file:%{tempFile}",
-                    "inPwName" : "password1"
+                    "inPwName": "password1"
                 }
             ]
         },
@@ -57,7 +82,9 @@
             "list": [
                 {
                     "cmd": "rm",
-                    "args": ["%{tempFile}"]
+                    "args": [
+                        "%{tempFile}"
+                    ]
                 }
             ]
         }

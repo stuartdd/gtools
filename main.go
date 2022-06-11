@@ -23,6 +23,7 @@ const (
 
 	RC_SETUP = -1
 	RC_CLEAN = 0
+	RC_ERROR = 1
 )
 
 var (
@@ -401,6 +402,14 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 			soE.WriteToEncryptedFile(outEncKey)
 		}
 	}
+	httpPost, ok := so.(*HttpPostWriter)
+	if ok {
+		err := httpPost.Post()
+		if err != nil {
+			return RC_ERROR, err
+		}
+	}
+
 	return RC_CLEAN, nil
 }
 

@@ -25,7 +25,28 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 	if selectFrom == "" {
 		return defaultIn, nil
 	}
-	fn, typ, found := PrefixMatch(selectFrom, MEMORY_PREF, MEM_TYPE)
+	fn, typ, found := PrefixMatch(selectFrom, HTTP_PREF, HTTP_TYPE)
+	if found {
+		parts := strings.SplitN(fn, "|", 2)
+		if len(parts) == 0 || len(parts[0]) == 0 {
+			return nil, fmt.Errorf("no http url name after %s prefix of 'in' parameter", MEMORY_PREF)
+		}
+		resp, err := HttpGet(parts[0])
+		if err != nil {
+			return nil, err
+		}
+		filter := ""
+		if len(parts) > 1 {
+			filter = parts[1]
+		}
+		fresp, err := Filter([]byte(resp), filter)
+		if err != nil {
+			return nil, err
+		}
+		return &StringReader{resp: string(fresp), delayMs: 0, pos: 0, typ: typ, key: ""}, nil
+	}
+
+	fn, typ, found = PrefixMatch(selectFrom, MEMORY_PREF, MEM_TYPE)
 	if found {
 		parts := strings.SplitN(fn, "|", 2)
 		if len(parts) == 0 || len(parts[0]) == 0 {

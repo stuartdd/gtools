@@ -129,7 +129,6 @@ Each individual action is defined as follows:
         "inPwName": "",
         "outPwName": "",
         "outFile": "",
-        "outFilter": "",
         "errFile": "",
         "delay": 0,
     }
@@ -156,8 +155,7 @@ Each command has the following fields:
 | inPwName | The name of the localValue that holds tha value of the password used to decrypt the 'in' (sysin) stream. Note 'in' cannot be empty. | optional = "" |
 | outFile | Output from stdout will be written here. See Output below | optional = "" |
 | outPwName | The name of the localValue that holds tha value of the password used to encrypt the 'outFile' (sysout) stream. Note 'outFile' cannot be empty. | optional = "" |
-| outFilter | Filter the output using Selects. See Out Filters below | optional = "" |
-| errFile | Output from stderr will be written here. See Output below | optional = "" | optional = "" |
+| errFile | Output from stderr will be written here. See Output below | optional = "" |
 | delay | Delay between each cmd in Milli Seconds. 1000 = 1 second| optional = 0 | optional = "" |
 
 ### Args
@@ -220,37 +218,95 @@ echo ready to commit
 
 ### Output
 
-The 'outFile' parameter has multiple forms:
+---
+
+The 'outFile' and 'errFile' parameters have multiple forms:
+
+The 'outFile' and 'errFile' parameters can also be followed by a filter:
+
+``` json
+"outFile":"memory|gitAuthData|AuthData,=,1"
+```
+
+The above will write sysout to memory with the name 'gitAuthData'. It will be filtered (see Filters below) to lines containing 'AuthData' split in to an array at the '=' character selecting the second array element (arrays are zero based).
 
 | form | Description |
 | ----------- | ----------- |
-| A_valid_file_name | The file will be deleted first, overwriting the previous content. Sysout will be written to the file. Only a single result will be written. |
-| append:A_valid_file_name | The 'append:' prefix means Sysout will be appended to the file. |
-| memory:name_in_cache | The 'memory:' prefix means Sysout will be written to the cache with the name 'name_in_cache'. |
+| A_valid_file_name * | The file will be deleted first, overwriting the previous content. Sysout will be written to the file. Only a single result will be written. |
+| append:A_valid_file_name * | The 'append:' prefix means Sysout will be appended to the file. |
+| memory:name_in_cache * | The 'memory:' prefix means Sysout will be written to the cache with the name 'name_in_cache'. |
+| clip:name_in_cache | The 'clip:' prefix means Sysout will be written to the cache with the name 'name_in_cache' and also copied to the clipboard. |
+| http:URL ** | The 'http:' prefix means Sysout will be written via HTTP POST ans a 'text/plain' mime type to the given URL |
+| errFile | Output from stderr will be written here. See Output below | optional = "" | optional = "" |
 
-### Filters
+Note * items apply to 'errFile' as well. 'errFile' definitions cannot be used with encryption, 'clip:' or 'http:'.
+
+### Example http GET and POST
+
+Note that '%{gituser}' will be substituted for the Local Value 'gituser'. See LocalValues for details
+
+``` json
+{
+    "cmd": "cat",
+    "in": "http:http://192.168.1.243:8080/files/name/%{gituser}.git.data",
+    "args": [],
+    "outFile": "textfile.txt"
+}
+```
+
+The above will cat the 'in' stream and write it to sysout. The outFile definition writes the stream to 'textfile.txt'. Asuming that that URL server implements GET data protocol, the received data will be written to the file.
+
+``` json
+{
+    "cmd": "cat",
+    "args": ["textfile.txt"],
+    "outFile": "http:http://192.168.1.80:8080/files/name/%{gituser}.git.data"
+}
+```
+
+The above will 'cat' the file 'textfile.txt' to sysout. The outFile will redirect sysout to the 'http' URL. Asuming that that URL server implements POST data protocol, the file contents will be written to it.
+
+The file mime type is always assumed to be 'text/plain'.
+
+### In and Out Filters
+
+---
 
 Filters can be applied to sysout (outFile) and sysin (in) as required.
 
-Two types of filters exist In Filters and Out Filters. They are defined slightly differently.
+``` json
+"outFile":"memory|abc123|user,=,1"
+```
 
-### Out Filters
+Write sysout to memory with the name 'abc123'. The filter will include lines that contain 'user'. Each line will be split by '=' and the [1] element will be output.
 
-An outFilter filters the generated sysout text. This can be written to sysout (default), a file or to cache memory.
+So if the line contains "user=stuart". Then 'stuart' will be writen to memory.
+
+``` json
+"in":"file:infile.txt|user,=,1"
+```
+
+Will read sysin from the file 'infile.txt' and filter the content to include lines that contain 'user'. Each line will be split by '=' and the [1] element will be output.
+
+### Filters
+
+A Filter can filters the generated sysout/syserr text as well a filter in sysin content.
 
 For example:
 
 ```json
-"outFilter":"l1,s1,p1|n2,s2,p2,d2",
+"outFile":"outfile.txt|l1,s1,p1|n2,s2,p2,d2"
 ```
+
+A _'filter'_ follows an 'in' or 'outFile' descriptor separated by '|' 
 
 A _'filter'_ is divided in to _'selector'_(s) by a '|' char.
 
 Selectors consist of up to 4 _'element'_(s) separated by  a ','
 
-All _'selector'_(s) applied to each to each line in order.
+All _'selector'_(s) are applied to each to each line in order.
 
-A single _'selector'_ does not require a '|'.
+A _'selector'_ does not require a '|' at the end.
 
 Stage 1
 
@@ -280,36 +336,16 @@ See the test file 'main_test.go' for examples of filters and their returned valu
 
 | Example | Description |
 | ----------- | ----------- |
-| "outFilter":"xyz" | All lines containing 'xyz' are output |
-| "outFilter":"5" | Only line 5 wil be output. If there are no enough lines, no output will be written |
-| "outFilter":"xyz\|4" | All lines containing 'xyz' and line 4 are output |
-| "outFilter":"xyz,=,1" | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output |
-| "outFilter":"xyz,=,1,," | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ',' |
-| "outFilter":"xyz,=,1,\n" | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a new line |
-| "outFilter":"xyz,=,1, . " | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ' . ' |
-| "outFilter":"xyz,=,1,," | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ',' |
-| "outFilter":"xyz,,,\n" | All lines containing 'xyz' are output followed by a new line |
-| "outFilter":"0,,,, \|1,,,\n" | Line 0 is written followed by a ', ' followed by line 1 folllowed by a new line |
-
-### In Filters
-
-The in filter is defined as part of the 'in' value fo the commands in an action list.
-
-| Example Without filters | Description |
-| ----------- | ----------- |
-| "input this value" | The sysin stream will return each char defined in the field |
-| "memory:xxy" | The sysin stream will be returned from the memory cache with the name 'xxy' |
-| "file:a/file.txt" | The sysin stream will be returned from the contents of the file 'a/file.txt' |
-
-In filters follow the memory cache name or the file name separated by the '|' character.
-
-The filters function in exactly the same way as the out filters. See above.
-
-| Example With filters | Description |
-| ----------- | ----------- |
-| "input this value" | This format cannot use a filter! |
-| "memory:xxy|filter1,=,1,:|filter2" | The sysin stream will be returned from the memory cache with the name 'xxy' filtered |
-| "file:a/file.txt|filter1,=,1,:|filter2" | The sysin stream will be returned from the contents of the file 'a/file.txt' filtered |
+| "xyz" | All lines containing 'xyz' are output |
+| "5" | Only line 5 wil be output. If there are no enough lines, no output will be written |
+| "xyz\|4" | All lines containing 'xyz' and line 4 are output |
+| "xyz,=,1" | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output |
+| "xyz,=,1,," | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ',' |
+| "xyz,=,1,\n" | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a new line |
+| "xyz,=,1, . " | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ' . ' |
+| "xyz,=,1,," | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ',' |
+| "xyz,,,\n" | All lines containing 'xyz' are output followed by a new line |
+| "0,,,, \|1,,,\n" | Line 0 is written followed by a ', ' followed by line 1 folllowed by a new line |
 
 ### Local Values
 

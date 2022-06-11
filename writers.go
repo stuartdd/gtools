@@ -51,6 +51,33 @@ type CacheWriter struct {
 	sb        strings.Builder // The text in the cache
 }
 
+type HttpPostWriter struct {
+	filter    string        // filter filters the lines written (see README.md)
+	cacheType ENUM_MEM_TYPE // Properties of the cache entry.
+	url       string
+	sb        strings.Builder // The text in the cache
+}
+
+func (hpw *HttpPostWriter) Write(p []byte) (n int, err error) {
+	return hpw.sb.Write(p)
+}
+
+func (hpw *HttpPostWriter) Post() error {
+	rc, err := HttpPost(hpw.url, "text/plain", hpw.sb.String())
+	if err != nil {
+		return err
+	}
+	if rc != 201 {
+		return fmt.Errorf("http post failed. Returned '%d'. URL '%s'", rc, hpw.url)
+	}
+	return nil
+}
+
+func NewHttpPostWriter(url, filter string, prefix string) *HttpPostWriter {
+	var sb strings.Builder
+	return &HttpPostWriter{url: url, filter: filter, sb: sb}
+}
+
 func NewBaseWriter(filter string, prefix string) *BaseWriter {
 	return &BaseWriter{filter: filter, prefix: prefix}
 }
@@ -146,8 +173,12 @@ func NewWriter(outName, key string, defaultOut, stdErr *BaseWriter) io.Writer {
 	}
 	var err error
 	var fn string
+	fn, typ, found := PrefixMatch(name, HTTP_PREF, HTTP_TYPE)
+	if found {
+		return &HttpPostWriter{url: fn, filter: filter, cacheType: typ}
+	}
 
-	fn, typ, found := PrefixMatch(name, CLIP_BOARD_PREF, CLIP_TYPE)
+	fn, typ, found = PrefixMatch(name, CLIP_BOARD_PREF, CLIP_TYPE)
 	if !found {
 		fn, typ, found = PrefixMatch(name, MEMORY_PREF, MEM_TYPE)
 	}

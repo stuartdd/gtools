@@ -22,6 +22,7 @@ const (
 	MEM_TYPE
 	FILE_TYPE
 	STR_TYPE
+	HTTP_TYPE
 )
 
 var (
@@ -37,6 +38,8 @@ var (
 	CLIP_BOARD_PREF  = "clip:"   // Used with CacheWriter to indicate that the cache is written to the clipboard
 	MEMORY_PREF      = "memory:" // Used to indicate that sysout or sysin will be written to cache
 	FILE_PREF        = "file:"   // Used with FileReader to indicate a sysin from a file
+	HTTP_PREF        = "http:"   // Used with Reader to indicate a sysin from a rest GET instance
+	// Used with Writer to send sysout or syserr to a rest POST instance
 
 )
 
