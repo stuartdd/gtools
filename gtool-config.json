@@ -25,6 +25,7 @@
     },
     "actions": [
         {
+            "tab" : "Z:Test",
             "name": "Write Enc",
             "desc": "Write an encrypted file",
             "list": [
@@ -40,6 +41,7 @@
             ]
         },
         {
+            "tab" : "Z:Test",
             "name": "HTTP Get",
             "desc": "Read a message from server",
             "list": [
@@ -51,6 +53,7 @@
             ]
         },
         {
+            "tab" : "Z:Test",
             "name": "HTTP Post",
             "desc": "Read a message from server",
             "list": [
@@ -65,6 +68,7 @@
             ]
         },
         {
+            "tab" : "Z:Test",
             "name": "Read Enc",
             "desc": "Read an encrypted file",
             "list": [
@@ -77,6 +81,7 @@
             ]
         },
         {
+            "tab" : "Z:Test",
             "name": "Remove",
             "desc": "Remove '%{tempFile}'",
             "list": [
