@@ -5,7 +5,7 @@
         "localValues": {
             "commitMessage": {
                 "desc": "Commit message",
-                "value": "Local commit",
+                "value": "",
                 "input": true
             },
             "password1": {
@@ -20,12 +20,49 @@
                 "input": true,
                 "value": "",
                 "isFileName": true
+            },
+            "PiServer": {
+                "desc": "PiServer",
+                "value": "http://192.168.1.243:8080"
+            },
+            "GitServer": {
+                "desc": "GitServer",
+                "value": "https://github.com/stuartdd/gtools"
             }
         }
     },
     "actions": [
         {
-            "tab" : "Z:Test",
+            "tab": "Z:Test",
+            "name": "Encrypt a file",
+            "desc": "Read, Encrypt and Write",
+            "list": [
+                {
+                    "cmd": "cat",
+                    "args": [
+                        "%{tempFile}"
+                    ],
+                    "outFile": "%{tempFile}.blob",
+                    "outPwName": "password1"
+                }
+            ]
+        },
+        {
+            "tab": "Z:Test",
+            "name": "Decrypt a file",
+            "desc": "Read, Decrypt and Write",
+            "list": [
+                {
+                    "cmd": "cat",
+                    "args": [],
+                    "in": "file:%{tempFile}",
+                    "inPwName": "password1",
+                    "outFile": "%{tempFile}.txt"
+                }
+            ]
+        },
+        {
+            "tab": "Z:Test",
             "name": "Write Enc",
             "desc": "Write an encrypted file",
             "list": [
@@ -41,19 +78,19 @@
             ]
         },
         {
-            "tab" : "Z:Test",
+            "tab": "Z:Test",
             "name": "HTTP Get",
             "desc": "Read a message from server",
             "list": [
                 {
                     "cmd": "cat",
-                    "in": "http:http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/xxx.data",
+                    "in": "http:%{PiServer}/files/user/stuart/loc/mydb/name/xxx.data",
                     "args": []
                 }
             ]
         },
         {
-            "tab" : "Z:Test",
+            "tab": "Z:Test",
             "name": "HTTP Post",
             "desc": "Read a message from server",
             "list": [
@@ -63,12 +100,12 @@
                         "config",
                         "-l"
                     ],
-                    "outFile": "http:http://192.168.1.243:8080/files/user/stuart/loc/mydb/name/xxx.data"
+                    "outFile": "http:%{PiServer}/files/user/stuart/loc/mydb/name/xxx.data"
                 }
             ]
         },
         {
-            "tab" : "Z:Test",
+            "tab": "Z:Test",
             "name": "Read Enc",
             "desc": "Read an encrypted file",
             "list": [
@@ -81,7 +118,7 @@
             ]
         },
         {
-            "tab" : "Z:Test",
+            "tab": "Z:Test",
             "name": "Remove",
             "desc": "Remove '%{tempFile}'",
             "list": [
