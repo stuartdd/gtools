@@ -74,7 +74,7 @@ func WarnDialog(title, message, additional string, parentWindow fyne.Window, tim
 }
 
 func (d *MyDialog) commit(s string) {
-	d.value.value = s
+	d.value.SetValue(s)
 	d.value.inputDone = true
 	d.wait = false
 }
@@ -145,7 +145,7 @@ func (d *MyDialog) Run(dt ENUM_ENTRY_TYPE) *MyDialog {
 	if d.value.isPassword {
 		entry = widget.NewPasswordEntry()
 	}
-	entry.SetText(d.value.value)
+	entry.SetText(d.value.GetValue())
 	entry.OnSubmitted = func(s string) {
 		if d.callIsValid(entry.Text) {
 			d.commit(entry.Text)

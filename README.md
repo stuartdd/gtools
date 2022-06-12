@@ -138,8 +138,8 @@ Each individual action is defined as follows:
 | Field name | Description | optional |
 | ----------- | ----------- | --------- |
 | name | Defined the value displayed in the action button | required |
-| desc | Defined the value displayed along side the action button | required |
-| hide | if true will not display a button. Used with runAtStart | optional = false |
+| desc | Defined the value displayed along side the action button | optional = "" |
+| hide | If contains '%{' or 'yes' then don't show | optional = "" |
 | list | Defines a number of commands to be run one after the other | required |
 | rc | Once the list of actions is complete, Exit the application with the return code given | Optional |
 
@@ -377,6 +377,8 @@ In the above extract 'commitMessage' is the {name} of the field.
 | localValues.{name}.minLen | Input the field in a dialog (once) with a minimum length | optional |
 | localValues.{name}.isPassword | Input the field in a dialog (once) treated as a password | optional |
 | localValues.{name}.isFileName | Input the field in a dialog (once) treated as a file name | optional |
+| localValues.{name}.isFileWatch | Will return a value is the file exists | optional |
+
 
 ### Encryption and Decryption
 

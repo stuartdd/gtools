@@ -46,11 +46,12 @@ var (
 type InputValue struct {
 	name          string
 	desc          string
-	value         string
+	_value        string
 	lastValue     string // Use by FileSave and FileOpen as that last location used
 	minLen        int
 	isPassword    bool
 	isFileName    bool
+	isFileWatch   bool
 	inputDone     bool
 	inputRequired bool
 }
@@ -69,12 +70,13 @@ type Model struct {
 }
 
 type ActionData struct {
-	tab      string
-	name     string
-	desc     string
-	hide     bool
-	rc       int
-	commands []*SingleAction
+	tab        string
+	name       string
+	desc       string
+	hideExp    string
+	shouldHide bool
+	rc         int
+	commands   []*SingleAction
 }
 
 type SingleAction struct {
@@ -111,7 +113,7 @@ func NewModelFromFile(home, fileName string, localConfig bool) (*Model, error) {
 	}
 	mod.ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
 	mod.RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
-	mod.RunAtStartDelay = mod.getIntWithFallback(runAtStartDelayPrefName, -1)
+	mod.RunAtStartDelay = mod.getIntWithFallback(runAtStartDelayPrefName, 0)
 	mod.RunAtEnd = mod.getStringWithFallback(runAtEndPrefName, "")
 	if localConfig {
 		localConfigFile := mod.getStringWithFallback(localConfigPrefName, "")
@@ -203,11 +205,22 @@ func (m *Model) loadInputFields() error {
 		minLen := m.getIntWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("minLen"), 1)
 		isPassword := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("isPassword"), false)
 		isFileName := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("isFileName"), false)
-		if isPassword && isFileName {
-			return fmt.Errorf("element '%s.%s.desc'. In the config file '%s'. Cannot be both a password and a filename", cacheInputFieldsPrefName, name, m.fileName)
+		isFileWatch := m.getBoolWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("isFileWatch"), false)
+		isCount := 0
+		if isPassword {
+			isCount++
+		}
+		if isFileName {
+			isCount++
+		}
+		if isFileWatch {
+			isCount++
+		}
+		if isCount > 1 {
+			return fmt.Errorf("element '%s.%s.desc'. In the config file '%s'. Con only be 1 of isPassword, isFileName or isFileWatch", cacheInputFieldsPrefName, name, m.fileName)
 		}
 		lastVal := ""
-		v := &InputValue{name: name, desc: desc, value: defaultVal, minLen: minLen, lastValue: lastVal, isPassword: isPassword, isFileName: isFileName, inputDone: false, inputRequired: inputRequired}
+		v := &InputValue{name: name, desc: desc, _value: defaultVal, minLen: minLen, lastValue: lastVal, isPassword: isPassword, isFileName: isFileName, isFileWatch: isFileWatch, inputDone: false, inputRequired: inputRequired}
 		m.values[name] = v
 	}
 	return nil
@@ -251,7 +264,7 @@ func (m *Model) loadActions() error {
 		if err != nil {
 			return err
 		}
-		desc, err := getStringNode(actionNode.(parser.NodeC), "desc", msg)
+		desc, err := getStringOptNode(actionNode.(parser.NodeC), "desc", "", msg)
 		if err != nil {
 			return err
 		}
@@ -261,7 +274,7 @@ func (m *Model) loadActions() error {
 			return err
 		}
 
-		hide, err := getBoolOptNode(actionNode.(parser.NodeC), "hide", false, msg)
+		hide, err := getStringOptNode(actionNode.(parser.NodeC), "hide", "", msg)
 		if err != nil {
 			return err
 		}
@@ -339,7 +352,7 @@ func (m *Model) GetTabs() (map[string][]*ActionData, string) {
 	resp := make(map[string][]*ActionData, 0)
 	singleName := ""
 	for _, a := range m.actionList {
-		if !a.hide {
+		if !a.shouldHide {
 			if a.tab == "" {
 				singleName = "Main"
 			} else {
@@ -380,7 +393,7 @@ func (m *Model) MutateStringFromLocalValues(in string, getValue func(*InputValue
 					}
 				}
 			}
-			out = strings.Replace(out, rep, strings.TrimSpace(v.value), -1)
+			out = strings.Replace(out, rep, strings.TrimSpace(v.GetValue()), -1)
 		}
 	}
 	return out, nil
@@ -427,7 +440,7 @@ func (m *Model) getBoolWithFallback(p *parser.Path, fb bool) bool {
 	return fb
 }
 
-func (p *Model) getActionData(name, tabName, desc string, hide bool, exitCode int) *ActionData {
+func (p *Model) getActionData(name, tabName, desc, hide string, exitCode int) *ActionData {
 	for _, a1 := range p.actionList {
 		if a1.name == name && a1.desc == desc {
 			return a1
@@ -505,8 +518,8 @@ func getStringList(node parser.NodeC, name, msg string) ([]string, error) {
 	return resp, nil
 }
 
-func NewActionData(name, tabName, desc string, hide bool, exitCode int) *ActionData {
-	return &ActionData{name: name, tab: tabName, desc: desc, rc: exitCode, hide: hide, commands: make([]*SingleAction, 0)}
+func NewActionData(name, tabName, desc, hide string, exitCode int) *ActionData {
+	return &ActionData{name: name, tab: tabName, desc: desc, rc: exitCode, hideExp: hide, shouldHide: false, commands: make([]*SingleAction, 0)}
 }
 
 func NewSingleAction(cmd string, args []string, input, outPwName, inPwName, outFile, errFile string, delay float64) *SingleAction {
@@ -520,6 +533,20 @@ func (p *ActionData) AddSingleAction(cmd string, data []string, input, outPwName
 
 func (p *ActionData) len() int {
 	return len(p.commands)
+}
+
+func (v *InputValue) GetValue() string {
+	if v.isFileWatch {
+		_, err := os.Open(v._value)
+		if err != nil {
+			return fmt.Sprintf("%%{%s}", v.name)
+		}
+	}
+	return v._value
+}
+
+func (v *InputValue) SetValue(val string) {
+	v._value = val
 }
 
 func (v *InputValue) GetLastValueAsLocation() (fyne.ListableURI, error) {

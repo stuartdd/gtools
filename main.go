@@ -95,16 +95,12 @@ func runAtStart() {
 		exitApp(fmt.Sprintf("RunAtStart: %s", err.Error()), 1)
 	}
 	go func() {
-		if model.RunAtStartDelay >= 0 {
+		if model.RunAtStartDelay > 0 {
 			time.Sleep(time.Duration(model.RunAtStartDelay) * time.Millisecond)
 		} else {
 			time.Sleep(time.Duration(500 * time.Millisecond))
 		}
 		execMultipleAction(action)
-		go func() {
-			time.Sleep(time.Second)
-			update()
-		}()
 	}()
 }
 
@@ -138,9 +134,14 @@ func newActionButton(label string, icon fyne.Resource, tapped func(action *Actio
 func update() {
 	var c fyne.CanvasObject
 	bb := buttonBar(action)
-	tabs, singleName := model.GetTabs()
-	if len(tabs) > 1 {
-		tabs := centerPanelTabbed(tabs)
+	for _, a := range model.actionList {
+		s, _ := SubstituteValuesIntoString(a.hideExp, nil)
+		a.shouldHide = strings.Contains(s, "%{") || s == "yes"
+	}
+
+	tabList, singleName := model.GetTabs()
+	if len(tabList) > 1 {
+		tabs := centerPanelTabbed(tabList)
 		if selectedTabIndex >= 0 {
 			tabs.SelectIndex(selectedTabIndex)
 		}
@@ -150,7 +151,7 @@ func update() {
 		c = container.NewBorder(bb, nil, nil, nil, tabs)
 	} else {
 		selectedTabIndex = -1
-		cp := centerPanel(tabs[singleName])
+		cp := centerPanel(tabList[singleName])
 		c = container.NewBorder(bb, nil, nil, nil, cp)
 	}
 	mainWindow.SetContent(c)
@@ -184,7 +185,7 @@ func centerPanel(actionData []*ActionData) *fyne.Container {
 	vp.Add(widget.NewSeparator())
 	min := 3
 	for _, l := range actionData {
-		if !l.hide {
+		if !l.shouldHide {
 			hp := container.NewHBox()
 			btn := newActionButton(l.name, theme.SettingsIcon(), func(action *ActionData) {
 				if !actionRunning {
@@ -278,10 +279,10 @@ func deriveKeyFromName(name string, sa *SingleAction) (string, error) {
 					return "", err
 				}
 			}
-			if cf.value == "" {
+			if cf.GetValue() == "" {
 				return "", fmt.Errorf("password not provided")
 			}
-			return cf.value, nil
+			return cf.GetValue(), nil
 		}
 	}
 	return "", nil

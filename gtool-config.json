@@ -1,6 +1,5 @@
 {
     "config": {
-        "showExit1": false,
         "localConfig": "test-config.json",
         "localValues": {
             "commitMessage": {
@@ -28,6 +27,11 @@
             "GitServer": {
                 "desc": "GitServer",
                 "value": "https://github.com/stuartdd/gtools"
+            },
+            "FileWatch": {
+                "desc": "FileWatch",
+                "value": ".localauthentication.data",
+                "isFileWatch": true
             }
         }
     },
@@ -120,12 +124,12 @@
         {
             "tab": "Z:Test",
             "name": "Remove",
-            "desc": "Remove '%{tempFile}'",
+            "desc": "Remove '%{FileWatch}'",
             "list": [
                 {
                     "cmd": "rm",
                     "args": [
-                        "%{tempFile}"
+                        "%{FileWatch}"
                     ]
                 }
             ]
