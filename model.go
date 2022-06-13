@@ -27,6 +27,7 @@ const (
 
 var (
 	actionsPrefName          = parser.NewDotPath("actions")
+	debugFilePrefName        = parser.NewDotPath("config.debugFile")
 	showExit1PrefName        = parser.NewDotPath("config.showExit1")
 	runAtStartPrefName       = parser.NewDotPath("config.runAtStart")
 	runAtStartDelayPrefName  = parser.NewDotPath("config.runAtStartDelay")
@@ -57,6 +58,7 @@ type InputValue struct {
 }
 
 type Model struct {
+	debug           string                 // Log file for events in gtool
 	homePath        string                 // Users home directory!
 	fileName        string                 // Root config file name
 	jsonRoot        parser.NodeC           // Root Json objects
@@ -111,6 +113,7 @@ func NewModelFromFile(home, fileName string, localConfig bool) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
+	mod.debug = mod.getStringWithFallback(debugFilePrefName, "")
 	mod.ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
 	mod.RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
 	mod.RunAtStartDelay = mod.getIntWithFallback(runAtStartDelayPrefName, 0)

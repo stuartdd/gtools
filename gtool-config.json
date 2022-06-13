@@ -1,5 +1,6 @@
 {
     "config": {
+        "debugFile": "",
         "localConfig": "test-config.json",
         "localValues": {
             "commitMessage": {
@@ -36,6 +37,28 @@
         }
     },
     "actions": [
+        {
+            "tab": "Z:Config",
+            "name": "Install gtool-config.json",
+            "desc": "Decrypt gtool-config.json.blob --> %{HOME}",
+            "list": [
+                {
+                    "cmd": "mv",
+                    "args": [
+                        "-f",
+                        "%{HOME}/gtool-config.json",
+                        "%{HOME}/gtool-config.json.bak"
+                    ]
+                },
+                {
+                    "cmd": "cat",
+                    "args": [],
+                    "in": "file:gtool-config.json.blob",
+                    "inPwName": "password1",
+                    "outFile": "%{HOME}/gtool-config.json"
+                }
+            ]
+        },
         {
             "tab": "Z:Test",
             "name": "Encrypt a file",
