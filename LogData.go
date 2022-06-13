@@ -55,7 +55,7 @@ func (lw *LogData) Close() {
 		}
 	}
 	time.Sleep(500 * time.Millisecond)
-	builtin.close(lw.queue)
+	close(lw.queue)
 	lw.queue = nil
 	lw.logger = nil
 }
