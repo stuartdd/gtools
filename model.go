@@ -27,7 +27,6 @@ const (
 
 var (
 	actionsPrefName          = parser.NewDotPath("actions")
-	debugFilePrefName        = parser.NewDotPath("config.debugFile")
 	showExit1PrefName        = parser.NewDotPath("config.showExit1")
 	runAtStartPrefName       = parser.NewDotPath("config.runAtStart")
 	runAtStartDelayPrefName  = parser.NewDotPath("config.runAtStartDelay")
@@ -57,8 +56,15 @@ type InputValue struct {
 	inputRequired bool
 }
 
+func (iv *InputValue) String() string {
+	if iv.isPassword {
+		return fmt.Sprintf("LocalValue name:%s minLen:%d, value:\"?\", isPW:%t, isFN:%t, isFW:%t", iv.name, iv.minLen, iv.isPassword, iv.isFileName, iv.isFileWatch)
+	}
+	return fmt.Sprintf("LocalValue name:%s minLen:%d, value:\"%s\", isPW:%t, isFN:%t, isFW:%t", iv.name, iv.minLen, iv._value, iv.isPassword, iv.isFileName, iv.isFileWatch)
+}
+
 type Model struct {
-	debug           string                 // Log file for events in gtool
+	debugLog        *LogData               // Log file for events in gtool
 	homePath        string                 // Users home directory!
 	fileName        string                 // Root config file name
 	jsonRoot        parser.NodeC           // Root Json objects
@@ -81,6 +87,10 @@ type ActionData struct {
 	commands   []*SingleAction
 }
 
+func (ad *ActionData) String() string {
+	return fmt.Sprintf("Action tab:\"%s\" name:\"%s\" desc:\"%s\"", ad.tab, ad.name, ad.desc)
+}
+
 type SingleAction struct {
 	command    string
 	args       []string
@@ -92,7 +102,11 @@ type SingleAction struct {
 	delay      float64
 }
 
-func NewModelFromFile(home, fileName string, localConfig bool) (*Model, error) {
+func (sa *SingleAction) String() string {
+	return fmt.Sprintf("cmd:\"%s\" args:\"%s\"", sa.command, sa.args)
+}
+
+func NewModelFromFile(home, fileName string, debugLog *LogData, localConfig bool) (*Model, error) {
 	j, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		return nil, err
@@ -104,7 +118,12 @@ func NewModelFromFile(home, fileName string, localConfig bool) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	mod := &Model{homePath: home, fileName: fileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), values: make(map[string]*InputValue)}
+
+	mod := &Model{homePath: home, fileName: fileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), values: make(map[string]*InputValue), debugLog: debugLog}
+	if debugLog.IsLogging() {
+		debugLog.WriteLog(fmt.Sprintf("Config data loaded %s", mod.fileName))
+	}
+
 	err = mod.loadInputFields()
 	if err != nil {
 		return nil, err
@@ -113,7 +132,6 @@ func NewModelFromFile(home, fileName string, localConfig bool) (*Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	mod.debug = mod.getStringWithFallback(debugFilePrefName, "")
 	mod.ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
 	mod.RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
 	mod.RunAtStartDelay = mod.getIntWithFallback(runAtStartDelayPrefName, 0)
@@ -121,7 +139,7 @@ func NewModelFromFile(home, fileName string, localConfig bool) (*Model, error) {
 	if localConfig {
 		localConfigFile := mod.getStringWithFallback(localConfigPrefName, "")
 		if localConfigFile != "" {
-			localMod, err := NewModelFromFile(home, localConfigFile, false)
+			localMod, err := NewModelFromFile(home, localConfigFile, debugLog, false)
 			if err == nil {
 				mod.MergeModel(localMod)
 			} else {
@@ -133,6 +151,9 @@ func NewModelFromFile(home, fileName string, localConfig bool) (*Model, error) {
 }
 
 func (m *Model) MergeModel(localMod *Model) {
+	if debugLog.IsLogging() {
+		debugLog.WriteLog(fmt.Sprintf("Merging model \"%s\"", localMod.fileName))
+	}
 	//
 	// Merge actions
 	//
@@ -225,8 +246,25 @@ func (m *Model) loadInputFields() error {
 		lastVal := ""
 		v := &InputValue{name: name, desc: desc, _value: defaultVal, minLen: minLen, lastValue: lastVal, isPassword: isPassword, isFileName: isFileName, isFileWatch: isFileWatch, inputDone: false, inputRequired: inputRequired}
 		m.values[name] = v
+		if m.debugLog.IsLogging() {
+			m.debugLog.WriteLog(fmt.Sprintf("LocalValue loaded name:%s, desc:\"%s\"", v.name, v.desc))
+		}
 	}
 	return nil
+}
+func (m *Model) Log() {
+	if m.debugLog.IsLogging() {
+		m.debugLog.WriteLog("***** Final State of the Model:")
+		for _, lv := range m.values {
+			m.debugLog.WriteLog(lv.String())
+		}
+		for _, ad := range m.actionList {
+			m.debugLog.WriteLog(ad.String())
+			for _, sa := range ad.commands {
+				m.debugLog.WriteLog("       " + sa.String())
+			}
+		}
+	}
 }
 
 func (m *Model) loadActions() error {

@@ -156,6 +156,19 @@
                     ]
                 }
             ]
+        },
+        {
+            "tab": "Z:Test",
+            "name": "Return NZ",
+            "desc": "Return NZ response to cmd",
+            "list": [
+                {
+                    "cmd": "./retrc",
+                    "args": [
+                        "9"
+                    ]
+                }
+            ]
         }
     ]
 }
