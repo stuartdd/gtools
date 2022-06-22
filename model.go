@@ -164,14 +164,14 @@ func (m *Model) MergeModel(localMod *Model) {
 	//
 	// Merge actions
 	//
-	for i, ac := range localMod.actionList {
-		_, err := m.GetActionDataForName(ac.name)
-		if err != nil {
+	for _, ac := range localMod.actionList {
+		_, index, _ := m.GetActionDataForName(ac.name)
+		if index < 0 {
 			// Add NEW action
 			m.actionList = append(m.actionList, ac)
 		} else {
 			// Override Existing action
-			m.actionList[i] = ac
+			m.actionList[index] = ac
 		}
 	}
 	//
@@ -204,13 +204,13 @@ func (m *Model) MergeModel(localMod *Model) {
 
 }
 
-func (m *Model) GetActionDataForName(name string) (*ActionData, error) {
-	for _, a := range m.actionList {
+func (m *Model) GetActionDataForName(name string) (*ActionData, int, error) {
+	for i, a := range m.actionList {
 		if a.name == name {
-			return a, nil
+			return a, i, nil
 		}
 	}
-	return nil, fmt.Errorf("action with name '%s' could not be found", name)
+	return nil, -1, fmt.Errorf("action with name '%s' could not be found", name)
 }
 
 func (m *Model) loadInputFields() error {

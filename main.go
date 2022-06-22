@@ -112,7 +112,7 @@ func main() {
 	}
 
 	if model.RunAtEnd != "" {
-		_, err := model.GetActionDataForName(model.RunAtEnd)
+		_, _, err := model.GetActionDataForName(model.RunAtEnd)
 		if err != nil {
 			exitApp(fmt.Sprintf("RunAtEnd: %s", err.Error()), 1)
 		}
@@ -138,7 +138,7 @@ func warningAtStart() {
 }
 
 func runAtStart() {
-	action, err := model.GetActionDataForName(model.RunAtStart)
+	action, _, err := model.GetActionDataForName(model.RunAtStart)
 	if err != nil {
 		exitApp(fmt.Sprintf("RunAtStart: %s", err.Error()), 1)
 	}
@@ -517,7 +517,7 @@ func SubstituteValuesIntoString(s string, entryDialog func(*InputValue) error) (
 
 func actionClose(data string, code int) {
 	if model.RunAtEnd != "" {
-		action, err := model.GetActionDataForName(model.RunAtEnd)
+		action, _, err := model.GetActionDataForName(model.RunAtEnd)
 		if err != nil {
 			exitApp(err.Error(), 1)
 		}
