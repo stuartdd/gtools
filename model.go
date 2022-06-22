@@ -92,14 +92,15 @@ func (ad *ActionData) String() string {
 }
 
 type SingleAction struct {
-	command    string
-	args       []string
-	sysin      string
-	outPwName  string
-	inPwName   string
-	sysoutFile string
-	syserrFile string
-	delay      float64
+	command     string
+	args        []string
+	sysin       string
+	outPwName   string
+	inPwName    string
+	sysoutFile  string
+	syserrFile  string
+	delay       float64
+	ignoreError bool
 }
 
 func (sa *SingleAction) String() string {
@@ -143,7 +144,13 @@ func NewModelFromFile(home, fileName string, debugLog *LogData, localConfig bool
 			if err == nil {
 				mod.MergeModel(localMod)
 			} else {
-				mod.warning = err.Error()
+				_, ok := err.(*os.PathError)
+				if ok {
+					mod.warning = err.Error()
+				} else {
+					return nil, err
+				}
+
 			}
 		}
 	}
@@ -377,7 +384,11 @@ func (m *Model) loadActions() error {
 					return fmt.Errorf("for '%s'.' using 'inPwName=%s' without 'in' file defined", msg, inPwName)
 				}
 			}
-			actionData.AddSingleAction(cmd, data, in, outPwName, inPwName, sysoutFile, syserrFile, delay)
+			ignoreError, err := getBoolOptNode(cmdNode.(parser.NodeC), "ignoreError", false, msg)
+			if err != nil {
+				return err
+			}
+			actionData.AddSingleAction(cmd, data, in, outPwName, inPwName, sysoutFile, syserrFile, delay, ignoreError)
 		}
 		if actionData.len() == 0 {
 			return fmt.Errorf("no commands found in 'list' for action '%s' with name '%s'", msg, actionData.name)
@@ -563,12 +574,12 @@ func NewActionData(name, tabName, desc, hide string, exitCode int) *ActionData {
 	return &ActionData{name: name, tab: tabName, desc: desc, rc: exitCode, hideExp: hide, shouldHide: false, commands: make([]*SingleAction, 0)}
 }
 
-func NewSingleAction(cmd string, args []string, input, outPwName, inPwName, outFile, errFile string, delay float64) *SingleAction {
-	return &SingleAction{command: cmd, args: args, outPwName: outPwName, inPwName: inPwName, sysin: input, sysoutFile: outFile, syserrFile: errFile, delay: delay}
+func NewSingleAction(cmd string, args []string, input, outPwName, inPwName, outFile, errFile string, delay float64, ignoreError bool) *SingleAction {
+	return &SingleAction{command: cmd, args: args, outPwName: outPwName, inPwName: inPwName, sysin: input, sysoutFile: outFile, syserrFile: errFile, delay: delay, ignoreError: ignoreError}
 }
 
-func (p *ActionData) AddSingleAction(cmd string, data []string, input, outPwName, inPwName, outFile, errFile string, delay float64) {
-	sa := NewSingleAction(cmd, data, input, outPwName, inPwName, outFile, errFile, delay)
+func (p *ActionData) AddSingleAction(cmd string, data []string, input, outPwName, inPwName, outFile, errFile string, delay float64, ignoreError bool) {
+	sa := NewSingleAction(cmd, data, input, outPwName, inPwName, outFile, errFile, delay, ignoreError)
 	p.commands = append(p.commands, sa)
 }
 

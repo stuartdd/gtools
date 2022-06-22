@@ -24,6 +24,8 @@ const (
 	RC_SETUP = -1
 	RC_CLEAN = 0
 	RC_ERROR = 1
+
+	CONFIG_FILE = "gtool-config.json"
 )
 
 var (
@@ -92,8 +94,16 @@ func main() {
 	}
 
 	if configFileName == "" {
-		path = homeDir + string(os.PathSeparator) + "gtool-config.json"
+		path = homeDir + string(os.PathSeparator) + CONFIG_FILE
 		model, err = NewModelFromFile(homeDir, path, debugLog, true)
+		if err != nil {
+			_, ok := err.(*os.PathError)
+			if ok {
+				model, err = NewModelFromFile(homeDir, CONFIG_FILE, debugLog, true)
+			} else {
+				exitApp(err.Error(), 1)
+			}
+		}
 	} else {
 		model, err = NewModelFromFile(homeDir, configFileName, debugLog, true)
 	}
@@ -351,19 +361,28 @@ func execMultipleAction(data *ActionData) {
 		locationMsg := fmt.Sprintf("Action '%s' step '%d'", data.desc, i)
 		rc, err := execSingleAction(act, stdOut, stdErr, data.desc)
 		if err != nil {
-			if debugLog.IsLogging() {
-				debugLog.WriteLog(fmt.Sprintf("    Error: %s. %s ", err.Error(), act.String()))
-			}
 			if rc == RC_SETUP {
+				if debugLog.IsLogging() {
+					debugLog.WriteLog(fmt.Sprintf("    Error Setup: %s. %s ", err.Error(), act.String()))
+				}
 				WarnDialog(locationMsg, err.Error(), "", mainWindow, 10, debugLog)
 				return
 			}
-			exitOsMsg := fmt.Sprintf("Exit to OS with RC=%d", rc)
-			resp := WarnDialog(locationMsg, err.Error(), exitOsMsg, mainWindow, 99, debugLog)
-			if resp == 1 {
-				exitApp(fmt.Sprintf("%s. RC[%d] Error:%s", locationMsg, rc, err.Error()), rc)
+			if act.ignoreError {
+				if debugLog.IsLogging() {
+					debugLog.WriteLog(fmt.Sprintf("    Error Ignored: %s. %s ", err.Error(), act.String()))
+				}
+			} else {
+				if debugLog.IsLogging() {
+					debugLog.WriteLog(fmt.Sprintf("    Error: %s. %s ", err.Error(), act.String()))
+				}
+				exitOsMsg := fmt.Sprintf("Exit to OS with RC=%d", rc)
+				resp := WarnDialog(locationMsg, err.Error(), exitOsMsg, mainWindow, 99, debugLog)
+				if resp == 1 {
+					exitApp(fmt.Sprintf("%s. RC[%d] Error:%s", locationMsg, rc, err.Error()), rc)
+				}
+				return
 			}
-			return
 		}
 		if debugLog.IsLogging() {
 			debugLog.WriteLog(fmt.Sprintf("    Command: rc:%d cmd:\"%s %s\"", rc, act.command, act.args))

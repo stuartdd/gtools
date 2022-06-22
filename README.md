@@ -131,6 +131,7 @@ Each individual action is defined as follows:
         "outFile": "",
         "errFile": "",
         "delay": 0,
+        "ignoreError":true
     }
 ]
 ```
@@ -142,6 +143,7 @@ Each individual action is defined as follows:
 | hide | If contains '%{' or 'yes' then don't show | optional = "" |
 | list | Defines a number of commands to be run one after the other | required |
 | rc | Once the list of actions is complete, Exit the application with the return code given | Optional |
+| ignoreError | Dont fail the action if the command fails | Optional=false |
 
 ### Commands (cmd)
 
