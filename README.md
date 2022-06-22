@@ -143,7 +143,6 @@ Each individual action is defined as follows:
 | hide | If contains '%{' or 'yes' then don't show | optional = "" |
 | list | Defines a number of commands to be run one after the other | required |
 | rc | Once the list of actions is complete, Exit the application with the return code given | Optional |
-| ignoreError | Dont fail the action if the command fails | Optional=false |
 
 ### Commands (cmd)
 
@@ -159,10 +158,11 @@ Each command has the following fields:
 | outPwName | The name of the localValue that holds tha value of the password used to encrypt the 'outFile' (sysout) stream. Note 'outFile' cannot be empty. | optional = "" |
 | errFile | Output from stderr will be written here. See Output below | optional = "" |
 | delay | Delay between each cmd in Milli Seconds. 1000 = 1 second| optional = 0 | optional = "" |
+| ignoreError | Dont fail the action if the command fails | Optional=false |
 
 ### Args
 
-Args are defined as a String list. For example if we wand to execute the command:
+Args are defined as a String list. For example if we want to execute the command:
 
 ```bash
 go mod tidy
@@ -179,9 +179,9 @@ cmd": "go",
 
 Each argument can contain a substitution expression. This expression will remain unchanged if it's source cannot be found.
 
-There are two sources:
+There are three sources:
 
-1: The result of a previous 'outFile' where 'memory is defined. For example:
+1: The result of a previous 'outFile' where 'memory:' is defined. For example:
 
 ```json
 "outFile": "memory:myvar"
@@ -195,27 +195,39 @@ The sysout from the command is optionally filtered  (see Out Filters below) and 
 "localValues": {
     "commitMessage": {
         "desc": "Commit message",
-        "default": "commit"
+        "default": "commit",
+        "input": true,
+        "minLen": 5
     }
 }
 ```
 
-If 'myvar' contains the text **'ready to'**.
+3: Environment variables
+
+So %{HOME} will return the path to your home directory.
+
+If the cache 'myvar' contains the text **'ready to'**.
+
+If the local variable 'commitMessage' contains the string **'commit'** (as defined above)
+
+If your user id is **'fred'**
+
+NOTE: _You will be prompted for the value of 'commitMessage' as it is an 'input' and you will have to enter at least 5 characters. The default value will be 'commit'_
 
 The result of the following:
 
 ```json
 cmd": "echo",
 "args": [
-    "%{myvar}", "%{commitMessage}"
+    "%{myvar}", "%{commitMessage}", "%{HOME}"
 ],
 ```
 
 will be:
 
 ```bash
-echo ready to commit
->ready to commit
+echo ready to commit /home/fred
+>ready to commit /home/fred
 ```
 
 ### Output
@@ -245,28 +257,32 @@ Note * items apply to 'errFile' as well. 'errFile' definitions cannot be used wi
 
 ### Example http GET and POST
 
-Note that '%{gituser}' will be substituted for the Local Value 'gituser'. See LocalValues for details
+Note that '%{USER}' will be substituted for the uesr id in environment variable USER.
+
+GET:
 
 ``` json
 {
     "cmd": "cat",
-    "in": "http:http://192.168.1.243:8080/files/name/%{gituser}.git.data",
+    "in": "http:http://131.200.0.23:8080/files/name/%{USER}.git.data",
     "args": [],
     "outFile": "textfile.txt"
 }
 ```
 
-The above will cat the 'in' stream and write it to sysout. The outFile definition writes the stream to 'textfile.txt'. Asuming that that URL server implements GET data protocol, the received data will be written to the file.
+The above will cat the 'in' stream and write it to sysout. The outFile definition writes sysout to 'textfile.txt'. Asuming that that URL server implements GET data protocol, the received data will be written to the file.
+
+POST:
 
 ``` json
 {
     "cmd": "cat",
     "args": ["textfile.txt"],
-    "outFile": "http:http://192.168.1.80:8080/files/name/%{gituser}.git.data"
+    "outFile": "http:http://131.200.0.23:8080/files/name/%{USER}.git.data"
 }
 ```
 
-The above will 'cat' the file 'textfile.txt' to sysout. The outFile will redirect sysout to the 'http' URL. Asuming that that URL server implements POST data protocol, the file contents will be written to it.
+The above will 'cat' the file 'textfile.txt' to sysout. The outFile will redirect sysout to the 'http' URL. Asuming that that URL server implements POST data protocol, the file contents will be sent to it.
 
 The file mime type is always assumed to be 'text/plain'.
 
@@ -400,7 +416,7 @@ A local value is required for encryption and decryption. The name if refered to 
 
 ### Encryption (outFile)
 
-The system output will be written to a file and encrypted using the password (key) defined in the local value.
+The sysout will be written to a file and encrypted using the password (key) defined in the local value 'myPw1'.
 
 ``` json
 {
@@ -430,7 +446,8 @@ The system input (sysin) will be read from file 'encdFile.txt' and decrypted usi
         {
             "cmd": "cat",
             "args": [],
-            "in": "file:encdFile.txt"
+            "in": "file:encdFile.txt",
+            "inPwName": "myPw1"
         }
     ]
 }
