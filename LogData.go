@@ -46,6 +46,10 @@ func (lw *LogData) IsLogging() bool {
 }
 
 func (lw *LogData) Close() {
+	if lw.queue == nil {
+		lw.logger = nil
+		return
+	}
 	count := 0
 	for len(lw.queue) > 0 {
 		time.Sleep(500 * time.Millisecond)

@@ -409,8 +409,8 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	}
 	cmd := exec.Command(sa.command, args...)
 
-	if sa.sysin != "" {
-		tmp, err := SubstituteValuesIntoString(sa.sysin, sysInDialog)
+	if sa.sysinDef != "" {
+		tmp, err := SubstituteValuesIntoString(sa.sysinDef, sysInDialog)
 		if err != nil {
 			return RC_SETUP, err
 		}
@@ -428,11 +428,11 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		}
 		cmd.Stdin = si
 	}
-	tmpOut, err := SubstituteValuesIntoString(sa.sysoutFile, sysOutDialog)
+	sysoutDef, err := SubstituteValuesIntoString(sa.sysoutDef, sysOutDialog)
 	if err != nil {
 		return RC_SETUP, err
 	}
-	so := NewWriter(tmpOut, outEncKey, stdOut, stdErr)
+	so := NewWriter(sysoutDef, outEncKey, stdOut, stdErr)
 	soReset, reSoOk := so.(Reset)
 	if reSoOk {
 		soReset.Reset()
@@ -443,11 +443,11 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	}
 	cmd.Stdout = so
 
-	tmpErr, err := SubstituteValuesIntoString(sa.syserrFile, sysOutDialog)
+	syserrDef, err := SubstituteValuesIntoString(sa.syserrDef, sysOutDialog)
 	if err != nil {
 		return RC_SETUP, err
 	}
-	se := NewWriter(tmpErr, outEncKey, stdErr, stdErr)
+	se := NewWriter(syserrDef, outEncKey, stdErr, stdErr)
 	seReset, reSeOk := se.(Reset)
 	if reSeOk {
 		seReset.Reset()

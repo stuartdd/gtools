@@ -58,6 +58,68 @@ type HttpPostWriter struct {
 	sb        strings.Builder // The text in the cache
 }
 
+//
+// Writer takes stdout (outFile) or stderr (errFile) and writes it to the defined receiver.
+//
+//   "outFile": "fileName" 			Will create the file 'fileName' and stream the content in to it
+//   "outFile": "append:fileName"   Will append to the file 'fileName'. It will be created if required
+//   "outFile": "memory:name"   	Will write the output to the memory cache with the name 'name'
+//   "outFile": "clip:name"   		Will write the output to the memory cache with the name 'name'
+//									AND copy it to the clipboard
+//
+func NewWriter(outDef, key string, defaultOut, stdErr *BaseWriter) io.Writer {
+	name, filter := splitNameFilter(outDef)
+	if name == "" {
+		if filter == "" {
+			return defaultOut
+		}
+		return NewBaseWriter(filter, defaultOut.prefix)
+	}
+	var err error
+	var fn string
+	fn, typ, found := PrefixMatch(name, HTTP_PREF, HTTP_TYPE)
+	if found {
+		return &HttpPostWriter{url: fn, filter: filter, cacheType: typ}
+	}
+
+	fn, typ, found = PrefixMatch(name, CLIP_BOARD_PREF, CLIP_TYPE)
+	if !found {
+		fn, typ, found = PrefixMatch(name, MEMORY_PREF, MEM_TYPE)
+	}
+	if found {
+		cw := ReadFromMemory(fn)
+		if cw == nil {
+			cw, err = NewCacheWriter(fn+"|"+filter, typ)
+			if err != nil {
+				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
+				return defaultOut
+			}
+			WriteToMemory(cw)
+		}
+		return cw
+	}
+	if key != "" {
+		cw, err := NewCacheWriter(fn+"|"+filter, typ)
+		if err != nil {
+			stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
+			return defaultOut
+		}
+		return cw
+	}
+	var f *os.File
+	fn, _, found = PrefixMatch(name, FILE_APPEND_PREF, FILE_TYPE)
+	if found {
+		f, err = os.OpenFile(fn, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	} else {
+		f, err = os.Create(fn)
+	}
+	if err != nil {
+		stdErr.Write([]byte(fmt.Sprintf("Failed to create file writer %s. %s", fn, err.Error())))
+		return defaultOut
+	}
+	return &FileWriter{fileName: fn, password: key, file: f, filter: filter, canWrite: true, stdOut: defaultOut, stdErr: stdErr}
+}
+
 func (hpw *HttpPostWriter) Write(p []byte) (n int, err error) {
 	return hpw.sb.Write(p)
 }
@@ -152,68 +214,6 @@ func PrefixMatch(s string, pref string, typ ENUM_MEM_TYPE) (string, ENUM_MEM_TYP
 		return s[len(pref):], typ, true
 	}
 	return s, typ, false
-}
-
-//
-// Writer takes stdout (outFile) or stderr (errFile) and writes it to the defined receiver.
-//
-//   "outFile": "fileName" 			Will create the file 'fileName' and stream the content in to it
-//   "outFile": "append:fileName"   Will append to the file 'fileName'. It will be created if required
-//   "outFile": "memory:name"   	Will write the output to the memory cache with the name 'name'
-//   "outFile": "clip:name"   		Will write the output to the memory cache with the name 'name'
-//									AND copy it to the clipboard
-//
-func NewWriter(outName, key string, defaultOut, stdErr *BaseWriter) io.Writer {
-	name, filter := splitNameFilter(outName)
-	if name == "" {
-		if filter == "" {
-			return defaultOut
-		}
-		return NewBaseWriter(filter, defaultOut.prefix)
-	}
-	var err error
-	var fn string
-	fn, typ, found := PrefixMatch(name, HTTP_PREF, HTTP_TYPE)
-	if found {
-		return &HttpPostWriter{url: fn, filter: filter, cacheType: typ}
-	}
-
-	fn, typ, found = PrefixMatch(name, CLIP_BOARD_PREF, CLIP_TYPE)
-	if !found {
-		fn, typ, found = PrefixMatch(name, MEMORY_PREF, MEM_TYPE)
-	}
-	if found {
-		cw := ReadFromMemory(fn)
-		if cw == nil {
-			cw, err = NewCacheWriter(fn+"|"+filter, typ)
-			if err != nil {
-				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
-				return defaultOut
-			}
-			WriteToMemory(cw)
-		}
-		return cw
-	}
-	if key != "" {
-		cw, err := NewCacheWriter(fn+"|"+filter, typ)
-		if err != nil {
-			stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
-			return defaultOut
-		}
-		return cw
-	}
-	var f *os.File
-	fn, _, found = PrefixMatch(name, FILE_APPEND_PREF, FILE_TYPE)
-	if found {
-		f, err = os.OpenFile(fn, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-	} else {
-		f, err = os.Create(fn)
-	}
-	if err != nil {
-		stdErr.Write([]byte(fmt.Sprintf("Failed to create file writer %s. %s", fn, err.Error())))
-		return defaultOut
-	}
-	return &FileWriter{fileName: fn, password: key, file: f, filter: filter, canWrite: true, stdOut: defaultOut, stdErr: stdErr}
 }
 
 func (fw *FileWriter) Close() error {

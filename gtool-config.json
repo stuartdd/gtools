@@ -52,10 +52,9 @@
                 },
                 {
                     "cmd": "cat",
-                    "args": [],
-                    "in": "file:gtool-config.json.blob",
+                    "stdin": "file:gtool-config.json.blob",
                     "inPwName": "password1",
-                    "outFile": "%{HOME}/gtool-config.json"
+                    "stdout": "%{HOME}/gtool-config.json"
                 }
             ]
         },
@@ -69,7 +68,7 @@
                     "args": [
                         "%{tempFile}"
                     ],
-                    "outFile": "%{tempFile}.blob",
+                    "stdout": "%{tempFile}.blob",
                     "outPwName": "password1"
                 }
             ]
@@ -81,10 +80,9 @@
             "list": [
                 {
                     "cmd": "cat",
-                    "args": [],
-                    "in": "file:%{tempFile}",
+                    "stdin": "file:%{tempFile}",
                     "inPwName": "password1",
-                    "outFile": "%{tempFile}.txt"
+                    "stdout": "%{tempFile}.txt"
                 }
             ]
         },
@@ -95,7 +93,7 @@
             "list": [
                 {
                     "cmd": "git",
-                    "outFile": "%{tempFile}",
+                    "stdout": "%{tempFile}",
                     "args": [
                         "config",
                         "-l"
@@ -111,8 +109,7 @@
             "list": [
                 {
                     "cmd": "cat",
-                    "in": "http:%{PiServer}/files/user/stuart/loc/mydb/name/xxx.data",
-                    "args": []
+                    "stdin": "http:%{PiServer}/files/user/stuart/loc/mydb/name/xxx.data"
                 }
             ]
         },
@@ -127,7 +124,7 @@
                         "config",
                         "-l"
                     ],
-                    "outFile": "http:%{PiServer}/files/user/stuart/loc/mydb/name/xxx.data"
+                    "stdout": "http:%{PiServer}/files/user/stuart/loc/mydb/name/xxx.data"
                 }
             ]
         },
@@ -138,8 +135,7 @@
             "list": [
                 {
                     "cmd": "cat",
-                    "args": [],
-                    "in": "file:%{tempFile}",
+                    "stdin": "file:%{tempFile}",
                     "inPwName": "password1"
                 }
             ]

@@ -125,11 +125,11 @@ Each individual action is defined as follows:
         "args": [
             "."
         ],
-        "in": "",
+        "stdin": "",
         "inPwName": "",
         "outPwName": "",
-        "outFile": "",
-        "errFile": "",
+        "stdout": "",
+        "stderr": "",
         "delay": 0,
         "ignoreError":true
     }
@@ -151,12 +151,12 @@ Each command has the following fields:
 | Field name | Description | optional |
 | ----------- | ----------- | --------- |
 | cmd | the command to be run (excluding any arguments). E.g. ls | required |
-| args | A String list of arguments. E.g. '-lta' See Agrs below | required |
-| in | Input to the sysin stream if a cmd requires it. See In Filters below | optional = "" |
-| inPwName | The name of the localValue that holds tha value of the password used to decrypt the 'in' (sysin) stream. Note 'in' cannot be empty. | optional = "" |
-| outFile | Output from stdout will be written here. See Output below | optional = "" |
-| outPwName | The name of the localValue that holds tha value of the password used to encrypt the 'outFile' (sysout) stream. Note 'outFile' cannot be empty. | optional = "" |
-| errFile | Output from stderr will be written here. See Output below | optional = "" |
+| args | A String list of arguments. E.g. '-lta' See Agrs below | optional |
+| stdin | Defines the stdin stream if a cmd requires it. See In Filters below | optional = "" |
+| inPwName | The name of the localValue that holds tha value of the password used to decrypt the 'stdin' stream. Note 'stdin' cannot be empty if inPwName is defined. | optional = "" |
+| stdout | Output from stdout will be written here. See Output below | optional = "" |
+| outPwName | The name of the localValue that holds tha value of the password used to encrypt the 'stdout' stream. Note 'stdout' cannot be empty. | optional = "" |
+| stderr | Output from stderr will be written here. See Output below | optional = "" |
 | delay | Delay between each cmd in Milli Seconds. 1000 = 1 second| optional = 0 | optional = "" |
 | ignoreError | Dont fail the action if the command fails | Optional=false |
 
@@ -181,13 +181,13 @@ Each argument can contain a substitution expression. This expression will remain
 
 There are three sources:
 
-1: The result of a previous 'outFile' where 'memory:' is defined. For example:
+1: The result of a previous 'stdout' where 'memory:' is defined. For example:
 
 ```json
-"outFile": "memory:myvar"
+"stdout": "memory:myvar"
 ```
 
-The sysout from the command is optionally filtered  (see Out Filters below) and stored in a cache with the name 'myvar'
+The stdout from the command is optionally filtered  (see Out Filters below) and stored in a cache with the name 'myvar'
 
 2: The result of a 'localValues' entry defined in the 'config' section of the config file.
 
@@ -234,15 +234,15 @@ echo ready to commit /home/fred
 
 ---
 
-The 'outFile' and 'errFile' parameters have multiple forms:
+The 'stdout' and 'stderr' parameters have multiple forms:
 
-The 'outFile' and 'errFile' parameters can also be followed by a filter:
+The 'stdout' and 'stderr' parameters can also be followed by a filter:
 
 ``` json
-"outFile":"memory|gitAuthData|AuthData,=,1"
+"stdout":"memory|gitAuthData|AuthData,=,1"
 ```
 
-The above will write sysout to memory with the name 'gitAuthData'. It will be filtered (see Filters below) to lines containing 'AuthData' split in to an array at the '=' character selecting the second array element (arrays are zero based).
+The above will write stdout to memory with the name 'gitAuthData'. It will be filtered (see Filters below) to lines containing 'AuthData' split in to an array at the '=' character selecting the second array element (arrays are zero based).
 
 | form | Description |
 | ----------- | ----------- |
@@ -251,9 +251,9 @@ The above will write sysout to memory with the name 'gitAuthData'. It will be fi
 | memory:name_in_cache * | The 'memory:' prefix means Sysout will be written to the cache with the name 'name_in_cache'. |
 | clip:name_in_cache | The 'clip:' prefix means Sysout will be written to the cache with the name 'name_in_cache' and also copied to the clipboard. |
 | http:URL ** | The 'http:' prefix means Sysout will be written via HTTP POST ans a 'text/plain' mime type to the given URL |
-| errFile | Output from stderr will be written here. See Output below | optional = "" | optional = "" |
+| stderr | Output from stderr will be written here. See Output below | optional = "" | optional = "" |
 
-Note * items apply to 'errFile' as well. 'errFile' definitions cannot be used with encryption, 'clip:' or 'http:'.
+Note * items apply to 'stderr' as well. 'stderr' definitions cannot be used with encryption, 'clip:' or 'http:'.
 
 ### Example http GET and POST
 
@@ -264,13 +264,13 @@ GET:
 ``` json
 {
     "cmd": "cat",
-    "in": "http:http://131.200.0.23:8080/files/name/%{USER}.git.data",
+    "stdin": "http:http://131.200.0.23:8080/files/name/%{USER}.git.data",
     "args": [],
-    "outFile": "textfile.txt"
+    "stdout": "textfile.txt"
 }
 ```
 
-The above will cat the 'in' stream and write it to sysout. The outFile definition writes sysout to 'textfile.txt'. Asuming that that URL server implements GET data protocol, the received data will be written to the file.
+The above will cat the 'stdin' stream and write it to stdout. The 'stdout' definition writes stdout to 'textfile.txt'. Asuming that that URL server implements GET data protocol, the received data will be written to the file.
 
 POST:
 
@@ -278,11 +278,11 @@ POST:
 {
     "cmd": "cat",
     "args": ["textfile.txt"],
-    "outFile": "http:http://131.200.0.23:8080/files/name/%{USER}.git.data"
+    "stdout": "http:http://131.200.0.23:8080/files/name/%{USER}.git.data"
 }
 ```
 
-The above will 'cat' the file 'textfile.txt' to sysout. The outFile will redirect sysout to the 'http' URL. Asuming that that URL server implements POST data protocol, the file contents will be sent to it.
+The above will 'cat' the file 'textfile.txt' to stdout. The 'stdout' definition will redirect stdout to the 'http' URL. Asuming that that URL server implements POST data protocol, the file contents will be sent to it.
 
 The file mime type is always assumed to be 'text/plain'.
 
@@ -290,33 +290,33 @@ The file mime type is always assumed to be 'text/plain'.
 
 ---
 
-Filters can be applied to sysout (outFile) and sysin (in) as required.
+Filters can be applied to stdout and stdin as required.
 
 ``` json
-"outFile":"memory|abc123|user,=,1"
+"stdout":"memory|abc123|user,=,1"
 ```
 
-Write sysout to memory with the name 'abc123'. The filter will include lines that contain 'user'. Each line will be split by '=' and the [1] element will be output.
+Write stdout to memory with the name 'abc123'. The filter will include lines that contain 'user'. Each line will be split by '=' and the [1] element will be output.
 
 So if the line contains "user=stuart". Then 'stuart' will be writen to memory.
 
 ``` json
-"in":"file:infile.txt|user,=,1"
+"stdin":"file:infile.txt|user,=,1"
 ```
 
-Will read sysin from the file 'infile.txt' and filter the content to include lines that contain 'user'. Each line will be split by '=' and the [1] element will be output.
+Will read stdin from the file 'infile.txt' and filter the content to include lines that contain 'user'. Each line will be split by '=' and the [1] element will be output.
 
 ### Filters
 
-A Filter can filters the generated sysout/syserr text as well a filter in sysin content.
+A Filter can filter the generated stdout/stderr text as well a filter in stdin content.
 
 For example:
 
 ```json
-"outFile":"outfile.txt|l1,s1,p1|n2,s2,p2,d2"
+"stdout":"outfile.txt|l1,s1,p1|n2,s2,p2,d2"
 ```
 
-A _'filter'_ follows an 'in' or 'outFile' descriptor separated by '|' 
+A _'filter'_ follows an 'stdin' or 'stdout' descriptor separated by '|' 
 
 A _'filter'_ is divided in to _'selector'_(s) by a '|' char.
 
@@ -400,7 +400,7 @@ In the above extract 'commitMessage' is the {name} of the field.
 
 ### Encryption and Decryption
 
-A local value is required for encryption and decryption. The name if refered to in the 'in' or 'outFile' definition.
+A local value is required for encryption and decryption. The name if refered to in the 'stdin' or 'stdout' definition.
 
 ``` json
 "localValues": {
@@ -414,9 +414,9 @@ A local value is required for encryption and decryption. The name if refered to 
 }
 ```
 
-### Encryption (outFile)
+### Encryption (stdout)
 
-The sysout will be written to a file and encrypted using the password (key) defined in the local value 'myPw1'.
+The stdout will be written to a file and encrypted using the password (key) defined in the local value 'myPw1'.
 
 ``` json
 {
@@ -425,7 +425,7 @@ The sysout will be written to a file and encrypted using the password (key) defi
         "config",
         "-l"
     ],
-    "outFile": "encFile.txt",
+    "stdout": "encFile.txt",
     "outPwName": "myPw1"
 }
  ```
@@ -436,7 +436,7 @@ Before the command is run a password entry dialog will be presented for entry of
 
 ### Decryption (in)
 
-The system input (sysin) will be read from file 'encdFile.txt' and decrypted using the password (key) defined in the local value.
+The system input (stdin) will be read from file 'encdFile.txt' and decrypted using the password (key) defined in the local value.
 
 ``` json
 {
@@ -446,7 +446,7 @@ The system input (sysin) will be read from file 'encdFile.txt' and decrypted usi
         {
             "cmd": "cat",
             "args": [],
-            "in": "file:encdFile.txt",
+            "stdin": "file:encdFile.txt",
             "inPwName": "myPw1"
         }
     ]

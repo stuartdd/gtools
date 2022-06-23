@@ -94,11 +94,11 @@ func (ad *ActionData) String() string {
 type SingleAction struct {
 	command     string
 	args        []string
-	sysin       string
-	outPwName   string
+	sysinDef    string
 	inPwName    string
-	sysoutFile  string
-	syserrFile  string
+	sysoutDef   string
+	syserrDef   string
+	outPwName   string
 	delay       float64
 	ignoreError bool
 }
@@ -120,9 +120,18 @@ func NewModelFromFile(home, fileName string, debugLog *LogData, localConfig bool
 		return nil, err
 	}
 
+	configNode := configData.GetNodeWithName("config")
+	if configNode == nil {
+		return nil, fmt.Errorf("primary 'config' node in file %s not found", fileName)
+	}
+
 	mod := &Model{homePath: home, fileName: fileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), values: make(map[string]*InputValue), debugLog: debugLog}
 	if debugLog.IsLogging() {
 		debugLog.WriteLog(fmt.Sprintf("Config data loaded %s", mod.fileName))
+	}
+	s, valid := ValidateNode(CONFIG_DEF, configNode.(parser.NodeC), "Config data")
+	if !valid {
+		return nil, fmt.Errorf("invalid config node in file %s. %s", mod.fileName, s)
 	}
 
 	err = mod.loadInputFields()
@@ -227,6 +236,10 @@ func (m *Model) loadInputFields() error {
 		if v.GetNodeType() != parser.NT_OBJECT {
 			return fmt.Errorf("element '%s.%s'. In the config file '%s'. Is not an Object node", cacheInputFieldsPrefName, name, m.fileName)
 		}
+		s, valid := ValidateNode(VALUE_DEF, v.(parser.NodeC), name)
+		if !valid {
+			return fmt.Errorf("element '%s'. In the config file '%s'. %s", cacheInputFieldsPrefName, m.fileName, s)
+		}
 		desc := m.getStringWithFallback(cacheInputFieldsPrefName.StringAppend(name).StringAppend("desc"), "")
 		if desc == "" {
 			return fmt.Errorf("element '%s.%s.desc'. In the config file '%s'. Not found or not a string", cacheInputFieldsPrefName, name, m.fileName)
@@ -308,6 +321,11 @@ func (m *Model) loadActions() error {
 		if err != nil {
 			return err
 		}
+		s, valid := ValidateNode(ACTION_DEF, actionNode.(parser.NodeC), "")
+		if !valid {
+			return fmt.Errorf("invalid data for action '%s'.%s", name, s)
+		}
+
 		tabName, err := getStringOptNode(actionNode.(parser.NodeC), "tab", "", msg)
 		if err != nil {
 			return err
@@ -334,6 +352,10 @@ func (m *Model) loadActions() error {
 
 		for i, cmdNode := range cmdList.GetValues() {
 			msg = fmt.Sprintf("%s -> %s[%d]", msg, "list", i)
+			s, valid := ValidateNode(SINGLE_ACTION_DEF, cmdNode.(parser.NodeC), "Command data")
+			if !valid {
+				return fmt.Errorf("invalid data for action '%s' list[%d]. %s", name, i, s)
+			}
 			if cmdNode.GetNodeType() != parser.NT_OBJECT {
 				return fmt.Errorf("node at %s is not an object node or has only one sub node", msg)
 			}
@@ -346,15 +368,15 @@ func (m *Model) loadActions() error {
 			if err != nil {
 				return err
 			}
-			in, err := getStringOptNode(cmdNode.(parser.NodeC), "in", "", msg)
+			sysinDef, err := getStringOptNode(cmdNode.(parser.NodeC), "stdin", "", msg)
 			if err != nil {
 				return err
 			}
-			sysoutFile, err := getStringOptNode(cmdNode.(parser.NodeC), "outFile", "", msg)
+			sysoutDef, err := getStringOptNode(cmdNode.(parser.NodeC), "stdout", "", msg)
 			if err != nil {
 				return err
 			}
-			syserrFile, err := getStringOptNode(cmdNode.(parser.NodeC), "errFile", "", msg)
+			syserrDef, err := getStringOptNode(cmdNode.(parser.NodeC), "syserr", "", msg)
 			if err != nil {
 				return err
 			}
@@ -371,7 +393,7 @@ func (m *Model) loadActions() error {
 				if !found {
 					return fmt.Errorf("for '%s'. 'outPwName=%s' was not found in config.cachedFields", msg, outPwName)
 				}
-				if invalidOutFileNameForPw(sysoutFile) {
+				if invalidOutFileNameForPw(sysoutDef) {
 					return fmt.Errorf("for '%s'. using 'outPwName=%s' without 'outFile' defined as a file", msg, outPwName)
 				}
 			}
@@ -380,15 +402,15 @@ func (m *Model) loadActions() error {
 				return err
 			}
 			if inPwName != "" {
-				if in == "" {
-					return fmt.Errorf("for '%s'.' using 'inPwName=%s' without 'in' file defined", msg, inPwName)
+				if sysinDef == "" {
+					return fmt.Errorf("for '%s'.' using 'inPwName=%s' without 'sysin' defined", msg, inPwName)
 				}
 			}
 			ignoreError, err := getBoolOptNode(cmdNode.(parser.NodeC), "ignoreError", false, msg)
 			if err != nil {
 				return err
 			}
-			actionData.AddSingleAction(cmd, data, in, outPwName, inPwName, sysoutFile, syserrFile, delay, ignoreError)
+			actionData.AddSingleAction(cmd, data, sysinDef, outPwName, inPwName, sysoutDef, syserrDef, delay, ignoreError)
 		}
 		if actionData.len() == 0 {
 			return fmt.Errorf("no commands found in 'list' for action '%s' with name '%s'", msg, actionData.name)
@@ -560,7 +582,10 @@ func getListNode(node parser.NodeC, name string) (parser.NodeC, error) {
 
 func getStringList(node parser.NodeC, name, msg string) ([]string, error) {
 	a := node.GetNodeWithName(name)
-	if a == nil || a.GetNodeType() != parser.NT_LIST {
+	if a == nil {
+		return make([]string, 0), nil
+	}
+	if a.GetNodeType() != parser.NT_LIST {
 		return nil, fmt.Errorf("action node '%s' does not contain the 'String list[]' node '%s'", msg, name)
 	}
 	resp := make([]string, 0)
@@ -574,12 +599,12 @@ func NewActionData(name, tabName, desc, hide string, exitCode int) *ActionData {
 	return &ActionData{name: name, tab: tabName, desc: desc, rc: exitCode, hideExp: hide, shouldHide: false, commands: make([]*SingleAction, 0)}
 }
 
-func NewSingleAction(cmd string, args []string, input, outPwName, inPwName, outFile, errFile string, delay float64, ignoreError bool) *SingleAction {
-	return &SingleAction{command: cmd, args: args, outPwName: outPwName, inPwName: inPwName, sysin: input, sysoutFile: outFile, syserrFile: errFile, delay: delay, ignoreError: ignoreError}
+func NewSingleAction(cmd string, args []string, sysinDef, outPwName, inPwName, sysoutDef, syserrDef string, delay float64, ignoreError bool) *SingleAction {
+	return &SingleAction{command: cmd, args: args, outPwName: outPwName, inPwName: inPwName, sysinDef: sysinDef, sysoutDef: sysoutDef, syserrDef: syserrDef, delay: delay, ignoreError: ignoreError}
 }
 
-func (p *ActionData) AddSingleAction(cmd string, data []string, input, outPwName, inPwName, outFile, errFile string, delay float64, ignoreError bool) {
-	sa := NewSingleAction(cmd, data, input, outPwName, inPwName, outFile, errFile, delay, ignoreError)
+func (p *ActionData) AddSingleAction(cmd string, data []string, sysinDef, outPwName, inPwName, sysoutDef, syserrDef string, delay float64, ignoreError bool) {
+	sa := NewSingleAction(cmd, data, sysinDef, outPwName, inPwName, sysoutDef, syserrDef, delay, ignoreError)
 	p.commands = append(p.commands, sa)
 }
 
