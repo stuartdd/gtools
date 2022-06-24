@@ -16,7 +16,7 @@ var (
 		"cmd": ""
 	}`)
 	cmd2 = []byte(`{
-		"sysin": "sas"
+		"stdin": "sas"
 	}`)
 	cmd3 = []byte(`{
 		"cmd": false

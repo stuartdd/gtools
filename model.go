@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -107,13 +108,17 @@ func (sa *SingleAction) String() string {
 	return fmt.Sprintf("cmd:\"%s\" args:\"%s\"", sa.command, sa.args)
 }
 
-func NewModelFromFile(home, fileName string, debugLog *LogData, localConfig bool) (*Model, error) {
-	j, err := ioutil.ReadFile(fileName)
+func NewModelFromFile(home, relFileName string, debugLog *LogData, localConfig bool) (*Model, error) {
+	absFileName, err := filepath.Abs(relFileName)
+	if err != nil {
+		return nil, err
+	}
+	j, err := ioutil.ReadFile(absFileName)
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(string(j)) == "" {
-		return nil, fmt.Errorf("file '%s' is empty", fileName)
+		return nil, fmt.Errorf("file '%s' is empty", absFileName)
 	}
 	configData, err := parser.Parse(j)
 	if err != nil {
@@ -122,10 +127,10 @@ func NewModelFromFile(home, fileName string, debugLog *LogData, localConfig bool
 
 	configNode := configData.GetNodeWithName("config")
 	if configNode == nil {
-		return nil, fmt.Errorf("primary 'config' node in file %s not found", fileName)
+		return nil, fmt.Errorf("primary 'config' node in file %s not found", absFileName)
 	}
 
-	mod := &Model{homePath: home, fileName: fileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), values: make(map[string]*InputValue), debugLog: debugLog}
+	mod := &Model{homePath: home, fileName: absFileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), values: make(map[string]*InputValue), debugLog: debugLog}
 	if debugLog.IsLogging() {
 		debugLog.WriteLog(fmt.Sprintf("Config data loaded %s", mod.fileName))
 	}
@@ -149,17 +154,27 @@ func NewModelFromFile(home, fileName string, debugLog *LogData, localConfig bool
 	if localConfig {
 		localConfigFile := mod.getStringWithFallback(localConfigPrefName, "")
 		if localConfigFile != "" {
-			localMod, err := NewModelFromFile(home, localConfigFile, debugLog, false)
-			if err == nil {
-				mod.MergeModel(localMod)
-			} else {
-				_, ok := err.(*os.PathError)
-				if ok {
-					mod.warning = err.Error()
-				} else {
-					return nil, err
+			localConfigFileAbs, _ := filepath.Abs(localConfigFile)
+			if localConfigFileAbs != mod.fileName {
+				if debugLog.IsLogging() {
+					debugLog.WriteLog(fmt.Sprintf("Loading local config \"%s\" from \"%s\"", localConfigFileAbs, mod.fileName))
 				}
+				localMod, err := NewModelFromFile(home, localConfigFileAbs, debugLog, false)
+				if err == nil {
+					mod.MergeModel(localMod)
+				} else {
+					_, ok := err.(*os.PathError)
+					if ok {
+						mod.warning = err.Error()
+					} else {
+						return nil, err
+					}
 
+				}
+			} else {
+				if debugLog.IsLogging() {
+					debugLog.WriteLog(fmt.Sprintf("Duplicate config file not loaded \"%s\"", localConfigFileAbs))
+				}
 			}
 		}
 	}
@@ -167,8 +182,8 @@ func NewModelFromFile(home, fileName string, debugLog *LogData, localConfig bool
 }
 
 func (m *Model) MergeModel(localMod *Model) {
-	if debugLog.IsLogging() {
-		debugLog.WriteLog(fmt.Sprintf("Merging model \"%s\"", localMod.fileName))
+	if m.debugLog.IsLogging() {
+		m.debugLog.WriteLog(fmt.Sprintf("Merging model \"%s\"", localMod.fileName))
 	}
 	//
 	// Merge actions
@@ -272,6 +287,7 @@ func (m *Model) loadInputFields() error {
 	}
 	return nil
 }
+
 func (m *Model) Log() {
 	if m.debugLog.IsLogging() {
 		m.debugLog.WriteLog("***** Final State of the Model:")

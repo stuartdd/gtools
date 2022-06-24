@@ -36,7 +36,7 @@ var (
 	model              *Model
 	actionRunning      bool = false
 	actionRunningLabel *widget.Label
-	debugLog           *LogData
+	debugLogMain       *LogData
 )
 
 type ActionButton struct {
@@ -77,9 +77,9 @@ func main() {
 	}
 
 	if logFileName == "" {
-		debugLog = &LogData{logger: nil, queue: nil}
+		debugLogMain = &LogData{logger: nil, queue: nil}
 	} else {
-		debugLog, err = NewLogData(logFileName, "gtool:")
+		debugLogMain, err = NewLogData(logFileName, "gtool:")
 		if err != nil {
 			exitApp(fmt.Sprintf("Failed to create logfile '%s'. Error:%s", logFileName, err.Error()), 1)
 		}
@@ -95,17 +95,17 @@ func main() {
 
 	if configFileName == "" {
 		path = homeDir + string(os.PathSeparator) + CONFIG_FILE
-		model, err = NewModelFromFile(homeDir, path, debugLog, true)
+		model, err = NewModelFromFile(homeDir, path, debugLogMain, true)
 		if err != nil {
 			_, ok := err.(*os.PathError)
 			if ok {
-				model, err = NewModelFromFile(homeDir, CONFIG_FILE, debugLog, true)
+				model, err = NewModelFromFile(homeDir, CONFIG_FILE, debugLogMain, true)
 			} else {
 				exitApp(err.Error(), 1)
 			}
 		}
 	} else {
-		model, err = NewModelFromFile(homeDir, configFileName, debugLog, true)
+		model, err = NewModelFromFile(homeDir, configFileName, debugLogMain, true)
 	}
 	if err != nil {
 		exitApp(err.Error(), 1)
@@ -116,8 +116,8 @@ func main() {
 		if err != nil {
 			exitApp(fmt.Sprintf("RunAtEnd: %s", err.Error()), 1)
 		}
-		if debugLog.IsLogging() {
-			debugLog.WriteLog(fmt.Sprintf("Run At End \"%s\"", model.RunAtEnd))
+		if debugLogMain.IsLogging() {
+			debugLogMain.WriteLog(fmt.Sprintf("Run At End \"%s\"", model.RunAtEnd))
 		}
 	}
 	if model.RunAtStart != "" {
@@ -132,7 +132,7 @@ func warningAtStart() {
 	if model.warning != "" {
 		go func() {
 			time.Sleep(500 * time.Millisecond)
-			WarnDialog("Data Load Error", model.warning, "", mainWindow, 9, debugLog)
+			WarnDialog("Data Load Error", model.warning, "", mainWindow, 9, debugLogMain)
 		}()
 	}
 }
@@ -142,8 +142,8 @@ func runAtStart() {
 	if err != nil {
 		exitApp(fmt.Sprintf("RunAtStart: %s", err.Error()), 1)
 	}
-	if debugLog.IsLogging() {
-		debugLog.WriteLog(fmt.Sprintf("Run At Start \"%s\". Delay %d ms", model.RunAtStart, model.RunAtStartDelay))
+	if debugLogMain.IsLogging() {
+		debugLogMain.WriteLog(fmt.Sprintf("Run At Start \"%s\". Delay %d ms", model.RunAtStart, model.RunAtStartDelay))
 	}
 
 	go func() {
@@ -272,13 +272,13 @@ func buttonBar(exec func(string, string, string)) *fyne.Container {
 		}))
 	}
 	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
-		m, err := NewModelFromFile(model.homePath, model.fileName, debugLog, true)
+		m, err := NewModelFromFile(model.homePath, model.fileName, debugLogMain, true)
 		if err != nil {
 			fmt.Printf("Failed to reload")
 		} else {
 			model = m
-			if debugLog.IsLogging() {
-				debugLog.WriteLog("Model Reloaded")
+			if debugLogMain.IsLogging() {
+				debugLogMain.WriteLog("Model Reloaded")
 			}
 			go update()
 		}
@@ -309,19 +309,19 @@ func action(exec, data1, data2 string) {
 func validatedEntryDialog(localValue *InputValue) error {
 	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
 		return len(strings.TrimSpace(s)) >= iv.minLen
-	}, mainWindow, debugLog).Run(VALUE_DIALOG_TYPE).err
+	}, mainWindow, debugLogMain).Run(VALUE_DIALOG_TYPE).err
 }
 
 func sysInDialog(localValue *InputValue) error {
 	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
 		return true
-	}, mainWindow, debugLog).Run(SYSIN_DIALOG_TYPE).err
+	}, mainWindow, debugLogMain).Run(SYSIN_DIALOG_TYPE).err
 }
 
 func sysOutDialog(localValue *InputValue) error {
 	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
 		return true
-	}, mainWindow, debugLog).Run(SYSOUT_DIALOG_TYPE).err
+	}, mainWindow, debugLogMain).Run(SYSOUT_DIALOG_TYPE).err
 }
 
 func deriveKeyFromName(name string, sa *SingleAction) (string, error) {
@@ -345,13 +345,13 @@ func deriveKeyFromName(name string, sa *SingleAction) (string, error) {
 
 func execMultipleAction(data *ActionData) {
 	setActionRunning(true, data.name)
-	if debugLog.IsLogging() {
-		debugLog.WriteLog("  Started " + data.String())
+	if debugLogMain.IsLogging() {
+		debugLogMain.WriteLog("  Started " + data.String())
 	}
 	defer func() {
 		setActionRunning(false, "")
-		if debugLog.IsLogging() {
-			debugLog.WriteLog("  Ended " + data.String())
+		if debugLogMain.IsLogging() {
+			debugLogMain.WriteLog("  Ended " + data.String())
 		}
 	}()
 
@@ -362,30 +362,30 @@ func execMultipleAction(data *ActionData) {
 		rc, err := execSingleAction(act, stdOut, stdErr, data.desc)
 		if err != nil {
 			if rc == RC_SETUP {
-				if debugLog.IsLogging() {
-					debugLog.WriteLog(fmt.Sprintf("    Error Setup: %s. %s ", err.Error(), act.String()))
+				if debugLogMain.IsLogging() {
+					debugLogMain.WriteLog(fmt.Sprintf("    Error Setup: %s. %s ", err.Error(), act.String()))
 				}
-				WarnDialog(locationMsg, err.Error(), "", mainWindow, 10, debugLog)
+				WarnDialog(locationMsg, err.Error(), "", mainWindow, 10, debugLogMain)
 				return
 			}
 			if act.ignoreError {
-				if debugLog.IsLogging() {
-					debugLog.WriteLog(fmt.Sprintf("    Error Ignored: %s. %s ", err.Error(), act.String()))
+				if debugLogMain.IsLogging() {
+					debugLogMain.WriteLog(fmt.Sprintf("    Error Ignored: %s. %s ", err.Error(), act.String()))
 				}
 			} else {
-				if debugLog.IsLogging() {
-					debugLog.WriteLog(fmt.Sprintf("    Error: %s. %s ", err.Error(), act.String()))
+				if debugLogMain.IsLogging() {
+					debugLogMain.WriteLog(fmt.Sprintf("    Error: %s. %s ", err.Error(), act.String()))
 				}
 				exitOsMsg := fmt.Sprintf("Exit to OS with RC=%d", rc)
-				resp := WarnDialog(locationMsg, err.Error(), exitOsMsg, mainWindow, 99, debugLog)
+				resp := WarnDialog(locationMsg, err.Error(), exitOsMsg, mainWindow, 99, debugLogMain)
 				if resp == 1 {
 					exitApp(fmt.Sprintf("%s. RC[%d] Error:%s", locationMsg, rc, err.Error()), rc)
 				}
 				return
 			}
 		}
-		if debugLog.IsLogging() {
-			debugLog.WriteLog(fmt.Sprintf("    Command: rc:%d cmd:\"%s %s\"", rc, act.command, act.args))
+		if debugLogMain.IsLogging() {
+			debugLogMain.WriteLog(fmt.Sprintf("    Command: rc:%d cmd:\"%s %s\"", rc, act.command, act.args))
 		}
 	}
 	if data.rc >= 0 {
@@ -528,8 +528,8 @@ func actionClose(data string, code int) {
 }
 
 func exitApp(data string, code int) {
-	if debugLog.IsLogging() {
-		debugLog.WriteLog(fmt.Sprintf("Exit: code:%d message:\"%s\"", code, data))
+	if debugLogMain.IsLogging() {
+		debugLogMain.WriteLog(fmt.Sprintf("Exit: code:%d message:\"%s\"", code, data))
 	}
 	if code != 0 {
 		fmt.Printf("%sEXIT CODE[%d]:%s%s\n", stdColourPrefix[STD_ERR], code, data, RESET)
@@ -538,6 +538,6 @@ func exitApp(data string, code int) {
 			fmt.Printf("%s%s%s\n", stdColourPrefix[STD_OUT], data, RESET)
 		}
 	}
-	debugLog.Close()
+	debugLogMain.Close()
 	os.Exit(code)
 }
