@@ -14,100 +14,100 @@ type NodeDef struct {
 
 var (
 	CONFIG_DEF = map[string]NodeDef{
-		"debugFile": NodeDef{
+		"debugFile": {
 			parser.NT_STRING, true,
 		},
-		"localValues": NodeDef{
+		"localValues": {
 			parser.NT_OBJECT, true,
 		},
-		"showExit1": NodeDef{
+		"showExit1": {
 			parser.NT_BOOL, true,
 		},
-		"runAtStart": NodeDef{
+		"runAtStart": {
 			parser.NT_STRING, true,
 		},
-		"runAtEnd": NodeDef{
+		"runAtEnd": {
 			parser.NT_STRING, true,
 		},
-		"runAtStartDelay": NodeDef{
+		"runAtStartDelay": {
 			parser.NT_NUMBER, true,
 		},
-		"localConfig": NodeDef{
+		"localConfig": {
 			parser.NT_STRING, true,
 		},
 	}
 
 	VALUE_DEF = map[string]NodeDef{
-		"desc": NodeDef{
+		"desc": {
 			parser.NT_STRING, false,
 		},
-		"value": NodeDef{
+		"value": {
 			parser.NT_STRING, true,
 		},
-		"input": NodeDef{
+		"input": {
 			parser.NT_BOOL, true,
 		},
-		"minLen": NodeDef{
+		"minLen": {
 			parser.NT_NUMBER, true,
 		},
-		"isPassword": NodeDef{
+		"isPassword": {
 			parser.NT_BOOL, true,
 		},
-		"isFileName": NodeDef{
+		"isFileName": {
 			parser.NT_BOOL, true,
 		},
-		"isFileWatch": NodeDef{
+		"isFileWatch": {
 			parser.NT_BOOL, true,
 		},
 	}
 
 	ACTION_DEF = map[string]NodeDef{
-		"name": NodeDef{
+		"name": {
 			parser.NT_STRING, false,
 		},
-		"tab": NodeDef{
+		"tab": {
 			parser.NT_STRING, true,
 		},
-		"desc": NodeDef{
+		"desc": {
 			parser.NT_STRING, true,
 		},
-		"rc": NodeDef{
+		"rc": {
 			parser.NT_NUMBER, true,
 		},
-		"hide": NodeDef{
+		"hide": {
 			parser.NT_STRING, true,
 		},
-		"list": NodeDef{
+		"list": {
 			parser.NT_LIST, true,
 		},
 	}
 
 	SINGLE_ACTION_DEF = map[string]NodeDef{
-		"cmd": NodeDef{
+		"cmd": {
 			parser.NT_STRING, false,
 		},
-		"args": NodeDef{
+		"args": {
 			parser.NT_LIST, true,
 		},
-		"stdin": NodeDef{
+		"stdin": {
 			parser.NT_STRING, true,
 		},
-		"inPwName": NodeDef{
+		"inPwName": {
 			parser.NT_STRING, true,
 		},
-		"stdout": NodeDef{
+		"stdout": {
 			parser.NT_STRING, true,
 		},
-		"outPwName": NodeDef{
+		"outPwName": {
 			parser.NT_STRING, true,
 		},
-		"stderr": NodeDef{
+		"stderr": {
 			parser.NT_STRING, true,
 		},
-		"delay": NodeDef{
+		"delay": {
 			parser.NT_NUMBER, true,
 		},
-		"ignoreError": NodeDef{
+		"ignoreError": {
 			parser.NT_BOOL, true,
 		},
 	}
@@ -115,7 +115,7 @@ var (
 
 func ValidateNode(def map[string]NodeDef, node parser.NodeC, desc string) (string, bool) {
 	founds := make(map[string]bool)
-	for n, _ := range def {
+	for n := range def {
 		founds[n] = false
 	}
 	nn := node.GetName()
