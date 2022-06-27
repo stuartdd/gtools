@@ -29,7 +29,6 @@ const (
 )
 
 var (
-	envMap             map[string]string
 	stdColourPrefix    = []string{GREEN, RED}
 	mainWindow         fyne.Window
 	selectedTabIndex   int = -1
@@ -82,14 +81,6 @@ func main() {
 		debugLogMain, err = NewLogData(logFileName, "gtool:")
 		if err != nil {
 			exitApp(fmt.Sprintf("Failed to create logfile '%s'. Error:%s", logFileName, err.Error()), 1)
-		}
-	}
-
-	envMap = make(map[string]string)
-	for _, e := range os.Environ() {
-		pair := strings.SplitN(e, "=", 2)
-		if len(pair) == 2 {
-			envMap[pair[0]] = pair[1]
 		}
 	}
 
@@ -164,6 +155,7 @@ func gui() {
 	})
 	update()
 	mainWindow.SetMaster()
+	mainWindow.SetIcon(IconGtool)
 	mainWindow.SetTitle("Data file:" + model.fileName)
 	mainWindow.Resize(fyne.NewSize(300, 100))
 	mainWindow.SetFixedSize(true)
@@ -306,38 +298,38 @@ func action(exec, data1, data2 string) {
 	}
 }
 
-func validatedEntryDialog(localValue *InputValue) error {
-	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
+func validatedEntryDialog(localValue *LocalValue) error {
+	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
 		return len(strings.TrimSpace(s)) >= iv.minLen
 	}, mainWindow, debugLogMain).Run(VALUE_DIALOG_TYPE).err
 }
 
-func sysInDialog(localValue *InputValue) error {
-	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
+func sysInDialog(localValue *LocalValue) error {
+	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
 		return true
 	}, mainWindow, debugLogMain).Run(SYSIN_DIALOG_TYPE).err
 }
 
-func sysOutDialog(localValue *InputValue) error {
-	return NewMyDialog(localValue, func(s string, iv *InputValue) bool {
+func sysOutDialog(localValue *LocalValue) error {
+	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
 		return true
 	}, mainWindow, debugLogMain).Run(SYSOUT_DIALOG_TYPE).err
 }
 
 func deriveKeyFromName(name string, sa *SingleAction) (string, error) {
 	if name != "" {
-		cf, ok := model.values[name]
+		lv, ok := model.GetLocalValue(name)
 		if ok {
-			if cf.inputRequired && !cf.inputDone {
-				err := validatedEntryDialog(cf)
+			if lv.inputRequired && !lv.inputDone {
+				err := validatedEntryDialog(lv)
 				if err != nil {
 					return "", err
 				}
 			}
-			if cf.GetValue() == "" {
+			if lv.GetValue() == "" {
 				return "", fmt.Errorf("password not provided")
 			}
-			return cf.GetValue(), nil
+			return lv.GetValue(), nil
 		}
 	}
 	return "", nil
@@ -414,7 +406,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		if err != nil {
 			return RC_SETUP, err
 		}
-		si, err := NewStringReader(tmp, cmd.Stdin)
+		si, err := NewStringReader(tmp, cmd.Stdin, model.GetDataCache())
 		if err != nil {
 			return RC_SETUP, err
 		}
@@ -432,7 +424,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	if err != nil {
 		return RC_SETUP, err
 	}
-	so := NewWriter(sysoutDef, outEncKey, stdOut, stdErr)
+	so := NewWriter(sysoutDef, outEncKey, stdOut, stdErr, model.GetDataCache())
 	soReset, reSoOk := so.(Reset)
 	if reSoOk {
 		soReset.Reset()
@@ -447,7 +439,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	if err != nil {
 		return RC_SETUP, err
 	}
-	se := NewWriter(syserrDef, outEncKey, stdErr, stdErr)
+	se := NewWriter(syserrDef, outEncKey, stdErr, stdErr, model.GetDataCache())
 	seReset, reSeOk := se.(Reset)
 	if reSeOk {
 		seReset.Reset()
@@ -492,7 +484,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	return RC_CLEAN, nil
 }
 
-func SubstituteValuesIntoArgs(s []string, entryDialog func(*InputValue) error) ([]string, error) {
+func SubstituteValuesIntoArgs(s []string, entryDialog func(*LocalValue) error) ([]string, error) {
 	resp := make([]string, 0)
 	for _, v := range s {
 		tmp, err := SubstituteValuesIntoString(v, entryDialog)
@@ -504,15 +496,8 @@ func SubstituteValuesIntoArgs(s []string, entryDialog func(*InputValue) error) (
 	return resp, nil
 }
 
-func SubstituteValuesIntoString(s string, entryDialog func(*InputValue) error) (string, error) {
-	var tmp string
-	var err error
-	tmp, err = model.MutateStringFromLocalValues(s, entryDialog)
-	if err != nil {
-		return "", err
-	}
-	tmp = MutateStringFromMemCache(tmp)
-	return tmp, nil
+func SubstituteValuesIntoString(s string, entryDialog func(*LocalValue) error) (string, error) {
+	return model.GetDataCache().Template(s, entryDialog)
 }
 
 func actionClose(data string, code int) {

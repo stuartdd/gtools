@@ -21,7 +21,7 @@ type StringReader struct {
 	typ     ENUM_MEM_TYPE
 }
 
-func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) {
+func NewStringReader(selectFrom string, defaultIn io.Reader, dataCache *DataCache) (io.Reader, error) {
 	if selectFrom == "" {
 		return defaultIn, nil
 	}
@@ -52,7 +52,7 @@ func NewStringReader(selectFrom string, defaultIn io.Reader) (io.Reader, error) 
 		if len(parts) == 0 || len(parts[0]) == 0 {
 			return nil, fmt.Errorf("no cache name after %s prefix of 'in' parameter", MEMORY_PREF)
 		}
-		cw := ReadFromMemory(parts[0])
+		cw := dataCache.GetCacheWriter(parts[0])
 		if cw != nil {
 			filter := ""
 			if len(parts) > 1 {

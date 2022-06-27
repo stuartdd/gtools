@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/storage"
 	"github.com/stuartdd2/JsonParser4go/parser"
 )
 
@@ -44,38 +42,18 @@ var (
 
 )
 
-type InputValue struct {
-	name          string
-	desc          string
-	_value        string
-	lastValue     string // Use by FileSave and FileOpen as that last location used
-	minLen        int
-	isPassword    bool
-	isFileName    bool
-	isFileWatch   bool
-	inputDone     bool
-	inputRequired bool
-}
-
-func (iv *InputValue) String() string {
-	if iv.isPassword {
-		return fmt.Sprintf("LocalValue name:%s minLen:%d, value:\"?\", isPW:%t, isFN:%t, isFW:%t", iv.name, iv.minLen, iv.isPassword, iv.isFileName, iv.isFileWatch)
-	}
-	return fmt.Sprintf("LocalValue name:%s minLen:%d, value:\"%s\", isPW:%t, isFN:%t, isFW:%t", iv.name, iv.minLen, iv._value, iv.isPassword, iv.isFileName, iv.isFileWatch)
-}
-
 type Model struct {
-	debugLog        *LogData               // Log file for events in gtool
-	homePath        string                 // Users home directory!
-	fileName        string                 // Root config file name
-	jsonRoot        parser.NodeC           // Root Json objects
-	actionList      []*ActionData          // List of actions
-	values          map[string]*InputValue // List of values
-	ShowExit1       bool                   // Show additional butten to exit with RC 1
-	RunAtStart      string                 // Action to run on load
-	RunAtStartDelay int                    // Run at start waits this number of milliseconds
-	RunAtEnd        string                 // Action to run on exit
-	warning         string                 // If the model loads dut with warnings
+	debugLog        *LogData      // Log file for events in gtool
+	homePath        string        // Users home directory!
+	fileName        string        // Root config file name
+	jsonRoot        parser.NodeC  // Root Json objects
+	actionList      []*ActionData // List of actions
+	dataCache       *DataCache    // List of values
+	ShowExit1       bool          // Show additional butten to exit with RC 1
+	RunAtStart      string        // Action to run on load
+	RunAtStartDelay int           // Run at start waits this number of milliseconds
+	RunAtEnd        string        // Action to run on exit
+	warning         string        // If the model loads dut with warnings
 }
 
 type ActionData struct {
@@ -130,7 +108,7 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, localConfig b
 		return nil, fmt.Errorf("primary 'config' node in file %s not found", absFileName)
 	}
 
-	mod := &Model{homePath: home, fileName: absFileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), values: make(map[string]*InputValue), debugLog: debugLog}
+	mod := &Model{homePath: home, fileName: absFileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), dataCache: NewDataCache(), debugLog: debugLog}
 	if debugLog.IsLogging() {
 		debugLog.WriteLog(fmt.Sprintf("Config data loaded %s", mod.fileName))
 	}
@@ -201,9 +179,7 @@ func (m *Model) MergeModel(localMod *Model) {
 	//
 	// Merge values. Replace values in map with same name
 	//
-	for n, v := range localMod.values {
-		m.values[n] = v
-	}
+	m.dataCache.MergeLocalValues(localMod.dataCache)
 	//
 	// Only override if defined in local file
 	//
@@ -235,6 +211,10 @@ func (m *Model) GetActionDataForName(name string) (*ActionData, int, error) {
 		}
 	}
 	return nil, -1, fmt.Errorf("action with name '%s' could not be found", name)
+}
+
+func (m *Model) GetLocalValue(name string) (*LocalValue, bool) {
+	return m.dataCache.GetLocalValue(name)
 }
 
 func (m *Model) loadInputFields() error {
@@ -278,11 +258,9 @@ func (m *Model) loadInputFields() error {
 		if isCount > 1 {
 			return fmt.Errorf("element '%s.%s.desc'. In the config file '%s'. Con only be 1 of isPassword, isFileName or isFileWatch", cacheInputFieldsPrefName, name, m.fileName)
 		}
-		lastVal := ""
-		v := &InputValue{name: name, desc: desc, _value: defaultVal, minLen: minLen, lastValue: lastVal, isPassword: isPassword, isFileName: isFileName, isFileWatch: isFileWatch, inputDone: false, inputRequired: inputRequired}
-		m.values[name] = v
+		lv := m.dataCache.AddLocalValue(name, desc, defaultVal, minLen, isPassword, isFileName, isFileWatch, inputRequired)
 		if m.debugLog.IsLogging() {
-			m.debugLog.WriteLog(fmt.Sprintf("LocalValue loaded name:%s, desc:\"%s\"", v.name, v.desc))
+			m.debugLog.WriteLog(fmt.Sprintf("LocalValue loaded name:%s, desc:\"%s\"", lv.name, lv.desc))
 		}
 	}
 	return nil
@@ -291,9 +269,7 @@ func (m *Model) loadInputFields() error {
 func (m *Model) Log() {
 	if m.debugLog.IsLogging() {
 		m.debugLog.WriteLog("***** Final State of the Model:")
-		for _, lv := range m.values {
-			m.debugLog.WriteLog(lv.String())
-		}
+		m.dataCache.LogLocalValues(m.debugLog)
 		for _, ad := range m.actionList {
 			m.debugLog.WriteLog(ad.String())
 			for _, sa := range ad.commands {
@@ -405,7 +381,7 @@ func (m *Model) loadActions() error {
 				return err
 			}
 			if outPwName != "" {
-				_, found := m.values[outPwName]
+				_, found := m.GetLocalValue(outPwName)
 				if !found {
 					return fmt.Errorf("for '%s'. 'outPwName=%s' was not found in config.cachedFields", msg, outPwName)
 				}
@@ -470,25 +446,6 @@ func (m *Model) len() int {
 	return len(m.actionList)
 }
 
-func (m *Model) MutateStringFromLocalValues(in string, getValue func(*InputValue) error) (string, error) {
-	out := in
-	for n, v := range m.values {
-		rep := fmt.Sprintf("%%{%s}", n)
-		if strings.Contains(in, rep) {
-			if getValue != nil {
-				if !v.inputDone && v.inputRequired {
-					err := getValue(v)
-					if err != nil {
-						return "", err
-					}
-				}
-			}
-			out = strings.Replace(out, rep, strings.TrimSpace(v.GetValue()), -1)
-		}
-	}
-	return out, nil
-}
-
 func (m *Model) getStringWithFallback(p *parser.Path, fb string) string {
 	n, err := parser.Find(m.jsonRoot, p)
 	if err != nil || n == nil {
@@ -528,6 +485,10 @@ func (m *Model) getBoolWithFallback(p *parser.Path, fb bool) bool {
 		return nb.GetValue()
 	}
 	return fb
+}
+
+func (dc *Model) GetDataCache() *DataCache {
+	return dc.dataCache
 }
 
 func (p *Model) getActionData(name, tabName, desc, hide string, exitCode int) *ActionData {
@@ -626,36 +587,4 @@ func (p *ActionData) AddSingleAction(cmd string, data []string, sysinDef, outPwN
 
 func (p *ActionData) len() int {
 	return len(p.commands)
-}
-
-func (v *InputValue) GetValue() string {
-	if v.isFileWatch {
-		_, err := os.Open(v._value)
-		if err != nil {
-			return fmt.Sprintf("%%{%s}", v.name)
-		}
-	}
-	return v._value
-}
-
-func (v *InputValue) SetValue(val string) {
-	v._value = val
-}
-
-func (v *InputValue) GetLastValueAsLocation() (fyne.ListableURI, error) {
-	if v.lastValue == "" {
-		d, err := os.Getwd()
-		if err == nil {
-			v.lastValue = d
-		}
-	}
-	u, err := storage.ParseURI("file://" + v.lastValue)
-	if err != nil {
-		return nil, err
-	}
-	l, err := storage.ListerForURI(u)
-	if err != nil {
-		return nil, err
-	}
-	return l, nil
 }

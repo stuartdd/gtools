@@ -67,7 +67,7 @@ type HttpPostWriter struct {
 //   "outFile": "clip:name"   		Will write the output to the memory cache with the name 'name'
 //									AND copy it to the clipboard
 //
-func NewWriter(outDef, key string, defaultOut, stdErr *BaseWriter) io.Writer {
+func NewWriter(outDef, key string, defaultOut, stdErr *BaseWriter, dataCache *DataCache) io.Writer {
 	name, filter := splitNameFilter(outDef)
 	if name == "" {
 		if filter == "" {
@@ -87,14 +87,14 @@ func NewWriter(outDef, key string, defaultOut, stdErr *BaseWriter) io.Writer {
 		fn, typ, found = PrefixMatch(name, MEMORY_PREF, MEM_TYPE)
 	}
 	if found {
-		cw := ReadFromMemory(fn)
+		cw := dataCache.GetCacheWriter(fn)
 		if cw == nil {
 			cw, err = NewCacheWriter(fn+"|"+filter, typ)
 			if err != nil {
 				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
 				return defaultOut
 			}
-			WriteToMemory(cw)
+			dataCache.PutCacheWriter(cw)
 		}
 		return cw
 	}

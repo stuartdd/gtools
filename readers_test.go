@@ -8,20 +8,21 @@ import (
 )
 
 var (
-	reader = strings.NewReader("012345678901234")
-	err    error
-	mr     io.Reader
+	testDataCacheR = NewDataCache()
+	testReaderR    = strings.NewReader("012345678901234")
+	err            error
+	mr             io.Reader
 )
 
 func TestReaderFileFilter(t *testing.T) {
-	mr, err = NewStringReader("file:test_data/readers_test.data|user.name", reader)
+	mr, err = NewStringReader("file:test_data/readers_test.data|user.name", testReaderR, testDataCacheR)
 	if err != nil {
 		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
 	}
 	testRead(t, mr, 18, "user.name=testuser", "Reader 6.0", 100)
 	testRead(t, mr, 0, "", "Reader 6.1", 100)
 
-	mr, err = NewStringReader("file:test_data/readers_test.data|user.name,=,1", reader)
+	mr, err = NewStringReader("file:test_data/readers_test.data|user.name,=,1", testReaderR, testDataCacheR)
 	if err != nil {
 		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
 	}
@@ -31,14 +32,14 @@ func TestReaderFileFilter(t *testing.T) {
 
 func TestReaderCacheFilter(t *testing.T) {
 	createCache(t, "test_data/readers_test.data", "cw15", "012345678901234")
-	mr, err = NewStringReader("memory:cw15|user.name", reader)
+	mr, err = NewStringReader("memory:cw15|user.name", testReaderR, testDataCacheR)
 	if err != nil {
 		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
 	}
 	testRead(t, mr, 18, "user.name=testuser", "Reader 7.0", 100)
 	testRead(t, mr, 0, "", "Reader 7.1", 100)
 
-	mr, err = NewStringReader("file:test_data/readers_test.data|user.name,=,1", reader)
+	mr, err = NewStringReader("file:test_data/readers_test.data|user.name,=,1", testReaderR, testDataCacheR)
 	if err != nil {
 		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
 	}
@@ -47,7 +48,7 @@ func TestReaderCacheFilter(t *testing.T) {
 }
 
 func TestReaderDirectFilter(t *testing.T) {
-	mr, err = NewStringReader("012345678901234|user.name", reader)
+	mr, err = NewStringReader("012345678901234|user.name", testReaderR, testDataCacheR)
 	if err != nil {
 		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
 	}
@@ -58,8 +59,8 @@ func TestReaderDirectFilter(t *testing.T) {
 }
 
 func TestReaderDefault(t *testing.T) {
-	mr, err = NewStringReader("", reader)
-	if mr != reader || err != nil {
+	mr, err = NewStringReader("", testReaderR, testDataCacheR)
+	if mr != testReaderR || err != nil {
 		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
 		return
 	}
@@ -69,7 +70,7 @@ func TestReaderDefault(t *testing.T) {
 }
 
 func TestReaderFile15(t *testing.T) {
-	mr, err = NewStringReader("file:test_data/readers_test_15.data", reader)
+	mr, err = NewStringReader("file:test_data/readers_test_15.data", testReaderR, testDataCacheR)
 	if err != nil {
 		t.Fatalf("FAIL 001: Should return nil not: %s", err.Error())
 	}
@@ -81,11 +82,11 @@ func TestReaderFile15(t *testing.T) {
 func TestReaderCache15(t *testing.T) {
 	createCache(t, "test_data/readers_test_15.data", "cw15", "012345678901234")
 
-	mr, err = NewStringReader("memory:xxxx", reader)
+	mr, err = NewStringReader("memory:xxxx", testReaderR, testDataCacheR)
 	if err == nil {
 		t.Fatalf("FAIL 001: Must throw an error if cache entry not found")
 	}
-	mr, err = NewStringReader("memory:cw15", reader)
+	mr, err = NewStringReader("memory:cw15", testReaderR, testDataCacheR)
 	if err != nil {
 		t.Fatalf("FAIL 001: Must NOT throw an error if cache entry is found :%s", err.Error())
 	}
@@ -95,7 +96,7 @@ func TestReaderCache15(t *testing.T) {
 }
 
 func TestReaderDirect(t *testing.T) {
-	mr, err = NewStringReader("012345678901234", reader)
+	mr, err = NewStringReader("012345678901234", testReaderR, testDataCacheR)
 	if err != nil {
 		t.Fatalf("FAIL 002: Should return nil not: %s", err.Error())
 	}
@@ -140,5 +141,5 @@ func createCache(t *testing.T, fileName, name, content string) {
 	if err != nil {
 		t.Fatalf("FAIL createCache: Write Should return nil not: %s", err.Error())
 	}
-	WriteToMemory(cw)
+	testDataCacheR.PutCacheWriter(cw)
 }

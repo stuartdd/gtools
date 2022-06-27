@@ -36,9 +36,25 @@ func TestTemplateSimple(t *testing.T) {
 	test(t, "", "")
 }
 
+func TestTemplateError(t *testing.T) {
+	str, err := TemplateParse("%{name}", func(s string) (string, error) {
+		return "", fmt.Errorf("ERROR!")
+	})
+	if err == nil {
+		t.Fatalf("Should return an error")
+	}
+	if err.Error() != "ERROR!" {
+		t.Fatalf("Should return an empty string")
+	}
+	if str != "%{name}" {
+		t.Fatalf("Should return an empty string")
+	}
+
+}
+
 func test(t *testing.T, in, expected string) {
-	str := TemplateParse(in, func(s1, s2 string) string {
-		return fmt.Sprintf("[%s]", s1)
+	str, _ := TemplateParse(in, func(s1 string) (string, error) {
+		return fmt.Sprintf("[%s]", s1), nil
 	})
 	if str != expected {
 		t.Fatalf("Should return '%s' not '%s'", expected, str)

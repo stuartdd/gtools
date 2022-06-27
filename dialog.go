@@ -23,14 +23,14 @@ const (
 
 type MyDialog struct {
 	debugLog *LogData
-	value    *InputValue
+	value    *LocalValue
 	parent   fyne.Window
 	wait     bool
 	err      error
-	isValid  func(string, *InputValue) bool
+	isValid  func(string, *LocalValue) bool
 }
 
-func NewMyDialog(value *InputValue, validate func(string, *InputValue) bool, parentWindow fyne.Window, debugLog *LogData) *MyDialog {
+func NewMyDialog(value *LocalValue, validate func(string, *LocalValue) bool, parentWindow fyne.Window, debugLog *LogData) *MyDialog {
 	return &MyDialog{value: value, isValid: validate, parent: parentWindow, wait: true, err: nil, debugLog: debugLog}
 }
 

@@ -8,39 +8,45 @@ import (
 )
 
 var (
-	stdOut = NewBaseWriter("", stdColourPrefix[STD_OUT])
-	stdErr = NewBaseWriter("", stdColourPrefix[STD_ERR])
+	testStdOutW    = NewBaseWriter("", stdColourPrefix[STD_OUT])
+	testStdErrW    = NewBaseWriter("", stdColourPrefix[STD_ERR])
+	testDataCacheW = NewDataCache()
 )
 
 func TestEncryptWriter(t *testing.T) {
-	fw := NewWriter("encrypt:test001", "", stdOut, stdErr)
+	testDataCacheW.ResetCache()
+	fw := NewWriter("memory:test001", "", testStdOutW, testStdErrW, testDataCacheW)
 	writeStuff(t, fw, "zzz", 3)
 	castWriter(t, fw, "zzz")
-	closeWriter(t, fw)
+	_, ok := fw.(Encrypted)
+	if !ok {
+		t.Fatalf("Error: Could mot cast to Encrypted")
+	}
 }
 
 func TestMemoryWriter(t *testing.T) {
-	fw := NewWriter("memory:test001", "", stdOut, stdErr)
+	testDataCacheW.ResetCache()
+	fw := NewWriter("memory:test001", "", testStdOutW, testStdErrW, testDataCacheW)
 	writeStuff(t, fw, "zzz", 3)
 	castWriter(t, fw, "zzz")
 	writeStuff(t, fw, "11", 2)
 	castWriter(t, fw, "zzz11")
 	writeStuff(t, fw, "\ntt", 3)
 	castWriter(t, fw, "zzz11\ntt")
-	m1 := ReadFromMemory("test001")
+	m1 := testDataCacheW.GetCacheWriter("test001")
 	if m1 == nil {
 		t.Fatalf("Error: Could fine test001 in memory")
 	}
 	castWriter(t, m1, "zzz11\ntt")
-	s := MutateStringFromMemCache("[%{abc}], [%{test001}]")
+	s, _ := testDataCacheW.Template("[%{abc}], [%{test001}]", nil)
 	if s != "[%{abc}], [zzz11\ntt]" {
 		t.Fatalf("Error: Substitution failed %s expectd [%%{abc}], [zzz11\ntt]", s)
 	}
-	closeWriter(t, m1)
 }
 
 func TestFileWriter(t *testing.T) {
-	fw1 := NewWriter("test001.txt", "", stdOut, stdErr)
+	testDataCacheW.ResetCache()
+	fw1 := NewWriter("test001.txt", "", testStdOutW, testStdErrW, testDataCacheW)
 	defer delete(t, "test001.txt")
 	writeStuff(t, fw1, "zzz", 3)
 	readFileExp(t, "test001.txt", "zzz")
@@ -48,13 +54,13 @@ func TestFileWriter(t *testing.T) {
 	readFileExp(t, "test001.txt", "zzzyyy")
 	closeWriter(t, fw1)
 	readFileExp(t, "test001.txt", "zzzyyy")
-	fw2 := NewWriter("test001.txt", "", stdOut, stdErr)
+	fw2 := NewWriter("test001.txt", "", testStdOutW, testStdErrW, testDataCacheW)
 	writeStuff(t, fw2, "zzz", 3)
 	readFileExp(t, "test001.txt", "zzz")
 	writeStuff(t, fw2, "yyy", 3)
 	readFileExp(t, "test001.txt", "zzzyyy")
 	closeWriter(t, fw2)
-	fw3 := NewWriter("append:test001.txt", "", stdOut, stdErr)
+	fw3 := NewWriter("append:test001.txt", "", testStdOutW, testStdErrW, testDataCacheW)
 	readFileExp(t, "test001.txt", "zzzyyy")
 	writeStuff(t, fw3, "xxx", 3)
 	readFileExp(t, "test001.txt", "zzzyyyxxx")
