@@ -26,7 +26,7 @@ const (
 
 var (
 	actionsPrefName          = parser.NewDotPath("actions")
-	showExit1PrefName        = parser.NewDotPath("config.showExit1")
+	showExit1PrefName        = parser.NewDotPath("config.showAltExit")
 	runAtStartPrefName       = parser.NewDotPath("config.runAtStart")
 	runAtStartDelayPrefName  = parser.NewDotPath("config.runAtStartDelay")
 	runAtEndPrefName         = parser.NewDotPath("config.runAtEnd")

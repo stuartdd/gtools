@@ -20,7 +20,7 @@ var (
 		"localValues": {
 			parser.NT_OBJECT, true,
 		},
-		"showExit1": {
+		"showAltExit": {
 			parser.NT_BOOL, true,
 		},
 		"runAtStart": {

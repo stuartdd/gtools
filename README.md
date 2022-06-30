@@ -29,7 +29,7 @@ Full definition of all valid fields:
 ``` json
 {
     "config": {
-        "showExit1": false,
+        "showAltExit": false,
         "runAtStart":"Start Code",
         "runAtStartDelay":100,
         "runAtEnd":"Clean up",
