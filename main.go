@@ -47,7 +47,6 @@ type ActionButton struct {
 func main() {
 	var err error
 	var path string
-
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		exitApp(err.Error(), 1)
@@ -123,7 +122,7 @@ func warningAtStart() {
 	if model.warning != "" {
 		go func() {
 			time.Sleep(500 * time.Millisecond)
-			WarnDialog("Data Load Error", model.warning, "", mainWindow, 9, debugLogMain)
+			WarnDialog("Data Load Error", model.warning, "", mainWindow, 5, debugLogMain)
 		}()
 	}
 }
