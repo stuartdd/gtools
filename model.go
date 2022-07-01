@@ -26,7 +26,7 @@ const (
 
 var (
 	actionsPrefName          = parser.NewDotPath("actions")
-	showExit1PrefName        = parser.NewDotPath("config.showAltExit")
+	altExitPrefName          = parser.NewDotPath("config.altExit")
 	runAtStartPrefName       = parser.NewDotPath("config.runAtStart")
 	runAtStartDelayPrefName  = parser.NewDotPath("config.runAtStartDelay")
 	runAtEndPrefName         = parser.NewDotPath("config.runAtEnd")
@@ -49,7 +49,8 @@ type Model struct {
 	jsonRoot        parser.NodeC  // Root Json objects
 	actionList      []*ActionData // List of actions
 	dataCache       *DataCache    // List of values
-	ShowExit1       bool          // Show additional butten to exit with RC 1
+	AltExitTitle    string        // Show additional butten to exit with RC 1
+	AltExitRc       int           // Show additional butten to exit with RC 1
 	RunAtStart      string        // Action to run on load
 	RunAtStartDelay int           // Run at start waits this number of milliseconds
 	RunAtEnd        string        // Action to run on exit
@@ -121,11 +122,29 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, localConfig b
 	if err != nil {
 		return nil, err
 	}
+
 	err = mod.loadActions()
 	if err != nil {
 		return nil, err
 	}
-	mod.ShowExit1 = mod.getBoolWithFallback(showExit1PrefName, false)
+
+	ae, err := mod.getContainerNode(altExitPrefName)
+	if err != nil {
+		return nil, err
+	}
+	if ae != nil {
+		s, valid := ValidateNode(ALT_EXIT, ae, altExitPrefName.String())
+		if !valid {
+			return nil, fmt.Errorf("invalid %s node in file %s. %s", altExitPrefName, mod.fileName, s)
+		}
+		tn := ae.GetNodeWithName("title")
+		mod.AltExitTitle = tn.(*parser.JsonString).GetValue()
+		rn := ae.GetNodeWithName("rc")
+		mod.AltExitRc = int(rn.(*parser.JsonNumber).GetIntValue())
+	} else {
+		mod.AltExitTitle = ""
+		mod.AltExitRc = 0
+	}
 	mod.RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
 	mod.RunAtStartDelay = mod.getIntWithFallback(runAtStartDelayPrefName, 0)
 	mod.RunAtEnd = mod.getStringWithFallback(runAtEndPrefName, "")
@@ -198,8 +217,9 @@ func (m *Model) MergeModel(localMod *Model) {
 	//
 	// Only override to switch it ON
 	//
-	if localMod.ShowExit1 {
-		m.ShowExit1 = localMod.ShowExit1
+	if localMod.AltExitTitle != "" {
+		m.AltExitTitle = localMod.AltExitTitle
+		m.AltExitRc = localMod.AltExitRc
 	}
 
 }
@@ -444,6 +464,18 @@ func invalidOutFileNameForPw(n string) bool {
 
 func (m *Model) len() int {
 	return len(m.actionList)
+}
+
+func (m *Model) getContainerNode(p *parser.Path) (parser.NodeC, error) {
+	n, err := parser.Find(m.jsonRoot, p)
+	if err != nil || n == nil {
+		return nil, nil
+	}
+	nc, ok := n.(parser.NodeC)
+	if ok {
+		return nc, nil
+	}
+	return nil, fmt.Errorf("node %s is not a container node", p.String())
 }
 
 func (m *Model) getStringWithFallback(p *parser.Path, fb string) string {

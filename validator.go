@@ -13,6 +13,14 @@ type NodeDef struct {
 }
 
 var (
+	ALT_EXIT = map[string]NodeDef{
+		"title": {
+			parser.NT_STRING, false,
+		},
+		"rc": {
+			parser.NT_NUMBER, false,
+		},
+	}
 	CONFIG_DEF = map[string]NodeDef{
 		"debugFile": {
 			parser.NT_STRING, true,
@@ -20,8 +28,8 @@ var (
 		"localValues": {
 			parser.NT_OBJECT, true,
 		},
-		"showAltExit": {
-			parser.NT_BOOL, true,
+		"altExit": {
+			parser.NT_OBJECT, true,
 		},
 		"runAtStart": {
 			parser.NT_STRING, true,

@@ -176,7 +176,7 @@ func newActionButton(label string, icon fyne.Resource, tapped func(action *Actio
 
 func update() {
 	var c fyne.CanvasObject
-	bb := buttonBar(action)
+	bb := buttonBar()
 	for _, a := range model.actionList {
 		s, _ := SubstituteValuesIntoString(a.hideExp, nil)
 		a.shouldHide = strings.Contains(s, "%{") || s == "yes"
@@ -252,14 +252,14 @@ func centerPanel(actionData []*ActionData) *fyne.Container {
 	return vp
 }
 
-func buttonBar(exec func(string, string, string)) *fyne.Container {
+func buttonBar() *fyne.Container {
 	bb := container.NewHBox()
-	bb.Add(widget.NewButtonWithIcon("Close(0)", theme.LogoutIcon(), func() {
-		exec("exit", "", "")
+	bb.Add(widget.NewButtonWithIcon("Close", theme.LogoutIcon(), func() {
+		actionClose("", 0)
 	}))
-	if model.ShowExit1 {
-		bb.Add(widget.NewButtonWithIcon("Close(1)", theme.LogoutIcon(), func() {
-			exec("exit1", "", "")
+	if model.AltExitTitle != "" {
+		bb.Add(widget.NewButtonWithIcon(model.AltExitTitle, theme.LogoutIcon(), func() {
+			actionClose(fmt.Sprintf("AltCloseAction: '%s'", model.AltExitTitle), model.AltExitRc)
 		}))
 	}
 	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
@@ -285,15 +285,6 @@ func setActionRunning(newState bool, name string) {
 		actionRunningLabel.SetText(fmt.Sprintf("Running '%s'", name))
 	} else {
 		actionRunningLabel.SetText("")
-	}
-}
-
-func action(exec, data1, data2 string) {
-	switch exec {
-	case "exit":
-		actionClose(data1, 0)
-	case "exit1":
-		actionClose(data1, 1)
 	}
 }
 
