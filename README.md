@@ -10,13 +10,23 @@ execute as:
 ./gtool
 ```
 
-The default configuration file will be gtool-config.json
+The default configuration file will be gtool-config.json in the home dir and if not found there then in the current directory.
 
 ```bash
-./gtool myConfigFile.json
+./gtool 
 ```
 
 For a specific config file.
+
+```bash
+./gtool -c myConfigFile.json
+```
+
+To log debug data use the -l option
+
+```bash
+./gtool -l myLogFile.log
+```
 
 ## Config data
 
@@ -65,7 +75,9 @@ Full definition of all valid fields:
 | Field name      | Description | optional |
 | ----------- | ----------- | --------- |
 | config | Contains global config data | optional |
-| config.showExit1 | true \| false Show the Close(1) button. App exit with return code | optional = false |
+| config.altExit | Defines an optional alternate close button | optional |
+| config.altExit.title | The button text | required if altExit defined |
+| config.altExit.rc | The OS return code. Allows the calling script to take a specific action | required if altExit defined |
 | config.runAtStart | Run action at startup. If "" then no action is taken | optional = "" |
 | config.runAtStartDelay | Run action at startup after n milliseconds | optional = 500 |
 | config.runAtEnd | Run action before exit. If "" then no action is taken | optional = "" |
@@ -250,7 +262,7 @@ The above will write stdout to memory with the name 'gitAuthData'. It will be fi
 | append:A_valid_file_name * | The 'append:' prefix means Sysout will be appended to the file. |
 | memory:name_in_cache * | The 'memory:' prefix means Sysout will be written to the cache with the name 'name_in_cache'. |
 | clip:name_in_cache | The 'clip:' prefix means Sysout will be written to the cache with the name 'name_in_cache' and also copied to the clipboard. |
-| http:URL ** | The 'http:' prefix means Sysout will be written via HTTP POST ans a 'text/plain' mime type to the given URL |
+| http:URL | The 'http:' prefix means Sysout will be written via HTTP POST and a 'text/plain' mime type to the given URL |
 | stderr | Output from stderr will be written here. See Output below | optional = "" | optional = "" |
 
 Note * items apply to 'stderr' as well. 'stderr' definitions cannot be used with encryption, 'clip:' or 'http:'.
