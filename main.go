@@ -163,7 +163,12 @@ func gui() {
 	update()
 	mainWindow.SetMaster()
 	mainWindow.SetIcon(IconGtool)
-	mainWindow.SetTitle("Data file:" + model.fileName)
+	wd, err := os.Getwd()
+	if err != nil {
+		mainWindow.SetTitle("Config file:" + model.fileName)
+	} else {
+		mainWindow.SetTitle("Current dir:" + wd)
+	}
 	mainWindow.Resize(fyne.NewSize(300, 100))
 	mainWindow.SetFixedSize(true)
 	warningAtStart()

@@ -165,6 +165,19 @@
                     ]
                 }
             ]
+        },
+        {
+            "tab": "Z:Test",
+            "name": "Long Run",
+            "desc": "Run for 5 seconds",
+            "list": [
+                {
+                    "cmd": "sleep",
+                    "args": [
+                        "5"
+                    ]
+                }
+            ]
         }
     ]
 }
