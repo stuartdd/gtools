@@ -87,9 +87,17 @@ func main() {
 		path = homeDir + string(os.PathSeparator) + CONFIG_FILE
 		model, err = NewModelFromFile(homeDir, path, debugLogMain, true)
 		if err != nil {
-			_, ok := err.(*os.PathError)
-			if ok {
+			_, isPathErr := err.(*os.PathError)
+			if isPathErr {
 				model, err = NewModelFromFile(homeDir, CONFIG_FILE, debugLogMain, true)
+				if err != nil {
+					_, isPathErr = err.(*os.PathError)
+					if isPathErr {
+						exitApp(fmt.Sprintf("Both\nuser config data '%s' and\nlocal config data '%s' could not be found.\nUse '-c configFileName' for alternative", path, CONFIG_FILE), 1)
+					} else {
+						exitApp(err.Error(), 1)
+					}
+				}
 			} else {
 				exitApp(err.Error(), 1)
 			}
