@@ -22,9 +22,6 @@ var (
 		},
 	}
 	CONFIG_DEF = map[string]NodeDef{
-		"debugFile": {
-			parser.NT_STRING, true,
-		},
 		"localValues": {
 			parser.NT_OBJECT, true,
 		},
