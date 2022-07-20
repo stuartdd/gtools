@@ -9,6 +9,7 @@ gtool
 gitpush
 *.txt
 __*
+test_*
 # Test binary, built with `go test -c`
 *.test
 

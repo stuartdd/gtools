@@ -37,13 +37,24 @@
     "actions": [
         {
             "tab": "Z:Http",
-            "name": "Git imsge",
+            "name": "Git image",
+            "desc": "Thumbnail server",
+            "list": [
+                {
+                    "cmd": "cat",
+                    "stdin": "http:http://localhost:8090/image/200/2007-08-25_London%2F2007-04-14_Owains_Birthday%2F2012-07-21_InTheGarden%2F20120721_191041.jpg",
+                    "stdout": "test_image.jpg"
+                }
+            ]
+        },{
+            "tab": "Z:Http",
+            "name": "Git file list",
             "desc": "Thumbnail server",
             "list": [
                 {
                     "cmd": "cat",
                     "stdin": "http:http://localhost:8090/files/list/2007-08-25_London%2F2007-04-14_Owains_Birthday%2F2012-07-21_InTheGarden%2F",
-                    "stdout": "abc123.txt"
+                    "stdout": "test_list.txt"
                 }
             ]
         },
