@@ -7,7 +7,8 @@
             "desc": "Text cmd only",
             "list": [
                 {
-                    "cmd": "pwd1"
+                    "cmd": "pwd1",
+                    "args":[]
                 },
                 {
                     "cmd": "pwd2",
