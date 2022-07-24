@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": ".",
-            "args": ["-l", "gtool-log.txt"]
+            "args": ["-c","gtool-config.json", "-l", "gtool-log.txt"]
         }
     ]
 }

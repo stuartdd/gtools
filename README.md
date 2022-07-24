@@ -1,5 +1,12 @@
 # gtools
 
+## TO-DO
+
+* Sort out JSON single list conversion from list to string
+* Reload does not re-run 'at start' task
+* Run action in background
+* Run timed action
+
 ## Rational
 
 ### Run commands defined by a JSON configuration file
