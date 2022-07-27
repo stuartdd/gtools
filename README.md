@@ -3,7 +3,7 @@
 ## TO-DO
 
 * Sort out JSON single list conversion from list to string
-* Reload does not re-run 'at start' task
+* DONE 27/07/2022: Reload does not re-run 'at start' task
 * Run action in background
 * Run timed action
 
@@ -374,7 +374,7 @@ See the test file 'main_test.go' for examples of filters and their returned valu
 | Example | Description |
 | ----------- | ----------- |
 | "xyz" | All lines containing 'xyz' are output |
-| "5" | Only line 5 wil be output. If there are no enough lines, no output will be written |
+| "5" | Only line 6 (because ZERO based) wil be output. If there are no enough lines, no output will be written |
 | "xyz\|4" | All lines containing 'xyz' and line 4 are output |
 | "xyz,=,1" | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output |
 | "xyz,=,1,," | All lines containing 'xyz' are split in to an array at the '=' symbol and the split[1] value will be output followed by a ',' |

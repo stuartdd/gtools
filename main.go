@@ -160,7 +160,7 @@ func gui() {
 	mainWindow.SetCloseIntercept(func() {
 		actionClose("", 0)
 	})
-	update()
+	update(false)
 	mainWindow.SetMaster()
 	mainWindow.SetIcon(IconGtool)
 	wd, err := os.Getwd()
@@ -187,7 +187,7 @@ func newActionButton(label string, icon fyne.Resource, tapped func(action *Actio
 	return ab
 }
 
-func update() {
+func update(doRunAtStart bool) {
 	var c fyne.CanvasObject
 	bb := buttonBar()
 	for _, a := range model.actionList {
@@ -211,6 +211,10 @@ func update() {
 		c = container.NewBorder(bb, nil, nil, nil, cp)
 	}
 	mainWindow.SetContent(c)
+	if doRunAtStart && model.RunAtStart != "" {
+		runAtStart()
+	}
+
 }
 
 func centerPanelTabbed(actionsByTab map[string][]*ActionData) *container.AppTabs {
@@ -284,7 +288,7 @@ func buttonBar() *fyne.Container {
 			if debugLogMain.IsLogging() {
 				debugLogMain.WriteLog("Model Reloaded")
 			}
-			go update()
+			go update(true)
 		}
 	}))
 	actionRunningLabel = widget.NewLabel("")
@@ -386,7 +390,7 @@ func execMultipleAction(data *ActionData) {
 	if data.rc >= 0 {
 		exitApp("", data.rc)
 	}
-	update()
+	update(false)
 }
 
 func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) (int, error) {

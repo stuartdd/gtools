@@ -43,10 +43,11 @@ func (lv *LocalValue) String() string {
 
 func (v *LocalValue) GetValue() string {
 	if v.isFileWatch {
-		_, err := os.Open(v._value)
+		f, err := os.Open(v._value)
 		if err != nil {
 			return fmt.Sprintf("%%{%s}", v.name)
 		}
+		defer f.Close()
 	}
 	return v._value
 }
