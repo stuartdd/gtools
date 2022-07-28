@@ -27,7 +27,10 @@
                 "desc": "GitServer",
                 "value": "https://github.com/stuartdd/gtools"
             }
-        }
+        },
+        "runAtStart":"Set GIT stuartdd",
+        "runAtStartDelay": 100,
+        "runAtEnd":"Remove 'gitpush'"
     },
     "actions": [
         {

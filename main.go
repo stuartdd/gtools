@@ -57,6 +57,7 @@ func main() {
 
 	configFileName := ""
 	logFileName := ""
+	clearLog := false
 	for i := 1; i < aLen; i++ {
 		if args[i] == "-c" {
 			if (i + 1) >= aLen {
@@ -72,12 +73,15 @@ func main() {
 			logFileName = os.Args[i+1]
 			i++
 		}
+		if args[i] == "-lc" {
+			clearLog = true
+		}
 	}
 
 	if logFileName == "" {
 		debugLogMain = &LogData{logger: nil, queue: nil}
 	} else {
-		debugLogMain, err = NewLogData(logFileName, "gtool:")
+		debugLogMain, err = NewLogData(logFileName, "gtool:", clearLog)
 		if err != nil {
 			exitApp(fmt.Sprintf("Failed to create logfile '%s'. Error:%s", logFileName, err.Error()), 1)
 		}
@@ -118,11 +122,8 @@ func main() {
 			debugLogMain.WriteLog(fmt.Sprintf("Run At End \"%s\"", model.RunAtEnd))
 		}
 	}
-	if model.RunAtStart != "" {
-		runAtStart()
-	}
-
 	model.Log()
+	runAtStartAll()
 	gui()
 }
 
@@ -135,20 +136,27 @@ func warningAtStart() {
 	}
 }
 
-func runAtStart() {
-	action, _, err := model.GetActionDataForName(model.RunAtStart)
+func runAtStartAll() {
+	for n, v := range model.RunAtStart {
+		runAtStart(n, v)
+	}
+}
+
+func runAtStart(name string, delay int) {
+	action, _, err := model.GetActionDataForName(name)
 	if err != nil {
 		exitApp(fmt.Sprintf("RunAtStart: %s", err.Error()), 1)
 	}
+
 	if debugLogMain.IsLogging() {
-		debugLogMain.WriteLog(fmt.Sprintf("Run At Start \"%s\". Delay %d ms", model.RunAtStart, model.RunAtStartDelay))
+		debugLogMain.WriteLog(fmt.Sprintf("Run At Start \"%s\". Delay %d ms", name, delay))
 	}
 
 	go func() {
-		if model.RunAtStartDelay > 0 {
-			time.Sleep(time.Duration(model.RunAtStartDelay) * time.Millisecond)
+		if delay > 0 {
+			time.Sleep(time.Duration(delay) * time.Millisecond)
 		} else {
-			time.Sleep(time.Duration(500 * time.Millisecond))
+			time.Sleep(time.Duration(100 * time.Millisecond))
 		}
 		execMultipleAction(action)
 	}()
@@ -211,10 +219,9 @@ func update(doRunAtStart bool) {
 		c = container.NewBorder(bb, nil, nil, nil, cp)
 	}
 	mainWindow.SetContent(c)
-	if doRunAtStart && model.RunAtStart != "" {
-		runAtStart()
+	if doRunAtStart {
+		runAtStartAll()
 	}
-
 }
 
 func centerPanelTabbed(actionsByTab map[string][]*ActionData) *container.AppTabs {

@@ -43,18 +43,18 @@ var (
 )
 
 type Model struct {
-	debugLog        *LogData      // Log file for events in gtool
-	homePath        string        // Users home directory!
-	fileName        string        // Root config file name
-	jsonRoot        parser.NodeC  // Root Json objects
-	actionList      []*ActionData // List of actions
-	dataCache       *DataCache    // List of values
-	AltExitTitle    string        // Show additional butten to exit with RC 1
-	AltExitRc       int           // Show additional butten to exit with RC 1
-	RunAtStart      string        // Action to run on load
-	RunAtStartDelay int           // Run at start waits this number of milliseconds
-	RunAtEnd        string        // Action to run on exit
-	warning         string        // If the model loads dut with warnings
+	debugLog        *LogData       // Log file for events in gtool
+	homePath        string         // Users home directory!
+	fileName        string         // Root config file name
+	jsonRoot        parser.NodeC   // Root Json objects
+	actionList      []*ActionData  // List of actions
+	dataCache       *DataCache     // List of values
+	AltExitTitle    string         // Show additional butten to exit with RC 1
+	AltExitRc       int            // Show additional butten to exit with RC 1
+	RunAtStart      map[string]int // Action to run on load
+	RunAtStartDelay int            // Run at start waits this number of milliseconds
+	RunAtEnd        string         // Action to run on exit
+	warning         string         // If the model loads dut with warnings
 }
 
 type ActionData struct {
@@ -87,7 +87,7 @@ func (sa *SingleAction) String() string {
 	return fmt.Sprintf("cmd:\"%s\" args:\"%s\"", sa.command, sa.args)
 }
 
-func NewModelFromFile(home, relFileName string, debugLog *LogData, localConfig bool) (*Model, error) {
+func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig bool) (*Model, error) {
 	absFileName, err := filepath.Abs(relFileName)
 	if err != nil {
 		return nil, err
@@ -145,10 +145,18 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, localConfig b
 		mod.AltExitTitle = ""
 		mod.AltExitRc = 0
 	}
-	mod.RunAtStart = mod.getStringWithFallback(runAtStartPrefName, "")
-	mod.RunAtStartDelay = mod.getIntWithFallback(runAtStartDelayPrefName, 0)
+	//
+	// Keep a map of the runAtStart/runAtStartDelay parameters from each model
+	//
+	mod.RunAtStart = make(map[string]int)
+	ras := mod.getStringWithFallback(runAtStartPrefName, "")
+	rasD := mod.getIntWithFallback(runAtStartDelayPrefName, 100)
+	if ras != "" {
+		mod.RunAtStart[ras] = rasD
+	}
+	//
 	mod.RunAtEnd = mod.getStringWithFallback(runAtEndPrefName, "")
-	if localConfig {
+	if primaryConfig {
 		localConfigFile := mod.getStringWithFallback(localConfigPrefName, "")
 		if localConfigFile != "" {
 			localConfigFileAbs, _ := filepath.Abs(localConfigFile)
@@ -199,20 +207,14 @@ func (m *Model) MergeModel(localMod *Model) {
 	// Merge values. Replace values in map with same name
 	//
 	m.dataCache.MergeLocalValues(localMod.dataCache)
-	//
-	// Only override if defined in local file
-	//
-	if localMod.RunAtStart != "" {
-		m.RunAtStart = localMod.RunAtStart
-	}
 	if localMod.RunAtStartDelay > 0 {
 		m.RunAtStartDelay = localMod.RunAtStartDelay
 	}
 	//
 	// Only override if defined in local file
 	//
-	if localMod.RunAtEnd != "" {
-		m.RunAtEnd = localMod.RunAtEnd
+	for n, v := range localMod.RunAtStart {
+		m.RunAtStart[n] = v
 	}
 	//
 	// Only override to switch it ON

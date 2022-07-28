@@ -9,12 +9,13 @@ import (
 )
 
 type LogData struct {
-	logger *log.Logger
-	queue  chan string
+	logger   *log.Logger
+	queue    chan string
+	clearLog bool
 }
 
-func NewLogData(fileName string, prefix string) (*LogData, error) {
-	lg, err := setup(fileName, prefix)
+func NewLogData(fileName string, prefix string, clearLog bool) (*LogData, error) {
+	lg, err := setup(fileName, prefix, clearLog)
 	if err != nil {
 		return nil, err
 	}
@@ -29,11 +30,15 @@ func NewLogData(fileName string, prefix string) (*LogData, error) {
 	return lg, nil
 }
 
-func setup(fileName string, prefix string) (*LogData, error) {
+func setup(fileName string, prefix string, clearLog bool) (*LogData, error) {
 	if fileName == "" {
 		return nil, fmt.Errorf("log file name was not provided")
 	}
-	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	flg := os.O_APPEND | os.O_CREATE | os.O_WRONLY
+	if clearLog {
+		flg = os.O_APPEND | os.O_CREATE | os.O_TRUNC | os.O_WRONLY
+	}
+	file, err := os.OpenFile(fileName, flg, 0666)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file")
 	}
