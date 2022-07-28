@@ -364,7 +364,7 @@ func execMultipleAction(data *ActionData) {
 	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
 	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
 	for i, act := range data.commands {
-		locationMsg := fmt.Sprintf("Action '%s' step '%d'", data.desc, i)
+		locationMsg := fmt.Sprintf("Action '%s' step '%d' path '%s'", data.desc, i, act.Dir())
 		rc, err := execSingleAction(act, stdOut, stdErr, data.desc)
 		if err != nil {
 			if rc == RC_SETUP {
@@ -391,7 +391,7 @@ func execMultipleAction(data *ActionData) {
 			}
 		}
 		if debugLogMain.IsLogging() {
-			debugLogMain.WriteLog(fmt.Sprintf("    Command: rc:%d cmd:\"%s %s\"", rc, act.command, act.args))
+			debugLogMain.WriteLog(fmt.Sprintf("    Command: path:\"%s\" rc:%d cmd:\"%s %s\"", act.Dir(), rc, act.command, act.args))
 		}
 	}
 	if data.rc >= 0 {
@@ -414,7 +414,9 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		return RC_SETUP, err
 	}
 	cmd := exec.Command(sa.command, args...)
-
+	if sa.directory != "" {
+		cmd.Dir = sa.directory
+	}
 	if sa.sysinDef != "" {
 		tmp, err := SubstituteValuesIntoString(sa.sysinDef, sysInDialog)
 		if err != nil {

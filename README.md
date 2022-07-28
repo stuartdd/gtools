@@ -144,6 +144,7 @@ Each individual action is defined as follows:
         "args": [
             "."
         ],
+        "path": "",
         "stdin": "",
         "inPwName": "",
         "outPwName": "",
@@ -171,6 +172,7 @@ Each command has the following fields:
 | ----------- | ----------- | --------- |
 | cmd | the command to be run (excluding any arguments). E.g. ls | required |
 | args | A String list of arguments. E.g. '-lta' See Agrs below | optional |
+| path | The directory to start the command in (it's existance is NOT checked before running the cmd) | optional = current dir |
 | stdin | Defines the stdin stream if a cmd requires it. See In Filters below | optional = "" |
 | inPwName | The name of the localValue that holds tha value of the password used to decrypt the 'stdin' stream. Note 'stdin' cannot be empty if inPwName is defined. | optional = "" |
 | stdout | Output from stdout will be written here. See Output below | optional = "" |

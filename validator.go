@@ -94,6 +94,9 @@ var (
 		"args": {
 			parser.NT_LIST, true,
 		},
+		"path": {
+			parser.NT_STRING, true,
+		},
 		"stdin": {
 			parser.NT_STRING, true,
 		},
