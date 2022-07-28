@@ -215,6 +215,9 @@ func (m *Model) MergeModel(localMod *Model) {
 	//
 	for n, v := range localMod.RunAtStart {
 		m.RunAtStart[n] = v
+		if m.debugLog.IsLogging() {
+			m.debugLog.WriteLog(fmt.Sprintf("Merging RunAtStart Action:%s Delay:%d", n, v))
+		}
 	}
 	//
 	// Only override to switch it ON
