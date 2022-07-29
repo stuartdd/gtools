@@ -1,0 +1,38 @@
+{
+    "config": {
+        "localValues": {
+            "password1": {
+                "desc": "Password",
+                "input": true,
+                "value": "",
+                "minLen": 5,
+                "isPassword": true
+            }
+        }
+    },
+    "actions": [
+
+        {
+            "tab": "Z:Config",
+            "name": "Install gtool-config.json",
+            "desc": "Decrypt gtool-config.json.blob --> %{HOME}",
+            "list": [
+                {
+                    "cmd": "mv",
+                    "args": [
+                        "-f",
+                        "%{HOME}/gtool-config.json",
+                        "%{HOME}/gtool-config.json.bak"
+                    ],
+                    "ignoreError": true
+                },
+                {
+                    "cmd": "cat",
+                    "stdin": "file:gtool-config.json.blob",
+                    "inPwName": "password1",
+                    "stdout": "%{HOME}/gtool-config.json"
+                }
+            ]
+        }
+    ]
+}
