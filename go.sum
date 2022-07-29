@@ -270,8 +270,8 @@ github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.7.2 h1:4jaiDzPyXQvSd7D0EjG45355tLlV3VOECpq10pLC+8s=
 github.com/stretchr/testify v1.7.2/go.mod h1:R6va5+xMeoiuVRoj+gSkQ7d3FALtqAAGI1FQKckRals=
-github.com/stuartdd2/JsonParser4go/parser v0.0.0-20220502134404-5ff371a3430e h1:UMjpJN0grdvkUr4b50rI6rGGtT/SUhs2daMU9ZOSkTU=
-github.com/stuartdd2/JsonParser4go/parser v0.0.0-20220502134404-5ff371a3430e/go.mod h1:7VThxTiwmsx+T75uQc7HbShiZibkIQjEMKNuNdoZxHw=
+github.com/stuartdd2/JsonParser4go/parser v0.0.0-20220729214751-7eddfb61aeda h1:UtnzfWPFqMTgsZ8OWluuzL1WmwGnw7uQLl/HCnWA3CM=
+github.com/stuartdd2/JsonParser4go/parser v0.0.0-20220729214751-7eddfb61aeda/go.mod h1:7VThxTiwmsx+T75uQc7HbShiZibkIQjEMKNuNdoZxHw=
 github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=
 github.com/tevino/abool v1.2.0 h1:heAkClL8H6w+mK5md9dzsuohKeXHUpY7Vw0ZCKW+huA=
 github.com/tevino/abool v1.2.0/go.mod h1:qc66Pna1RiIsPa7O4Egxxs9OqkuxDX55zznh9K07Tzg=

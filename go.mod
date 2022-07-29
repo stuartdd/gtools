@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	fyne.io/fyne/v2 v2.2.1
-	github.com/stuartdd2/JsonParser4go/parser v0.0.0-20220502134404-5ff371a3430e
+	github.com/stuartdd2/JsonParser4go/parser v0.0.0-20220729214751-7eddfb61aeda
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 )
 
