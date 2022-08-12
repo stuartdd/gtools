@@ -43,32 +43,40 @@ var (
 )
 
 type Model struct {
-	debugLog        *LogData       // Log file for events in gtool
-	homePath        string         // Users home directory!
-	fileName        string         // Root config file name
-	jsonRoot        parser.NodeC   // Root Json objects
-	actionList      []*ActionData  // List of actions
-	dataCache       *DataCache     // List of values
-	AltExitTitle    string         // Show additional butten to exit with RC 1
-	AltExitRc       int            // Show additional butten to exit with RC 1
-	RunAtStart      map[string]int // Action to run on load
-	RunAtStartDelay int            // Run at start waits this number of milliseconds
-	RunAtEnd        string         // Action to run on exit
-	warning         string         // If the model loads dut with warnings
+	debugLog     *LogData              // Log file for events in gtool
+	homePath     string                // Users home directory!
+	fileName     string                // Root config file name
+	jsonRoot     parser.NodeC          // Root Json objects
+	actionList   []*MultipleActionData // List of actions
+	dataCache    *DataCache            // List of values
+	AltExitTitle string                // Show additional butten to exit with RC 1
+	AltExitRc    int                   // Show additional butten to exit with RC 1
+	RunAtStart   []*RunAtStartAction   // Action to run on load
+	RunAtEnd     string                // Action to run on exit
+	warning      string                // If the model loads dut with warnings
 }
 
-type ActionData struct {
-	tab        string
-	name       string
-	desc       string
-	hideExp    string
-	shouldHide bool
-	rc         int
-	commands   []*SingleAction
+type MultipleActionData struct {
+	tab        string          // The name of the tab it will be listed under
+	name       string          // The name of the action(s)
+	desc       string          // The description of the action(s)
+	hideExp    string          // We ony show the action if the expression does NOT contain %{
+	shouldHide bool            // Dont show at all, ever.
+	rc         int             // If non ZERO exit the apprication with this error code when action complete
+	commands   []*SingleAction // The list of actions (commands) to execute for this action
 }
 
-func (ad *ActionData) String() string {
-	return fmt.Sprintf("Action tab:\"%s\" name:\"%s\" desc:\"%s\"", ad.tab, ad.name, ad.desc)
+type RunAtStartAction struct {
+	action *MultipleActionData
+	delay  int
+}
+
+func (ras *RunAtStartAction) String() string {
+	return fmt.Sprintf("RunAtStart:\"%s\" after:\"%d\" milliseconds", ras.action, ras.delay)
+}
+
+func (mad *MultipleActionData) String() string {
+	return fmt.Sprintf("Action: tab:\"%s\" name:\"%s\" desc:\"%s\"", mad.tab, mad.name, mad.desc)
 }
 
 type SingleAction struct {
@@ -117,7 +125,7 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig
 		return nil, fmt.Errorf("primary 'config' node in file %s not found", absFileName)
 	}
 
-	mod := &Model{homePath: home, fileName: absFileName, jsonRoot: configData, warning: "", actionList: make([]*ActionData, 0), dataCache: NewDataCache(), debugLog: debugLog}
+	mod := &Model{homePath: home, fileName: absFileName, jsonRoot: configData, warning: "", actionList: make([]*MultipleActionData, 0), dataCache: NewDataCache(), debugLog: debugLog}
 	if debugLog.IsLogging() {
 		debugLog.WriteLog(fmt.Sprintf("Config data loaded %s", mod.fileName))
 	}
@@ -156,11 +164,15 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig
 	//
 	// Keep a map of the runAtStart/runAtStartDelay parameters from each model
 	//
-	mod.RunAtStart = make(map[string]int)
+	mod.RunAtStart = make([]*RunAtStartAction, 0)
 	ras := mod.getStringWithFallback(runAtStartPrefName, "")
 	rasD := mod.getIntWithFallback(runAtStartDelayPrefName, 100)
 	if ras != "" {
-		mod.RunAtStart[ras] = rasD
+		act, _, err := mod.GetActionDataForName(ras)
+		if err != nil {
+			return nil, err
+		}
+		mod.RunAtStart = append(mod.RunAtStart, &RunAtStartAction{action: act, delay: rasD})
 	}
 	//
 	mod.RunAtEnd = mod.getStringWithFallback(runAtEndPrefName, "")
@@ -215,16 +227,13 @@ func (m *Model) MergeModel(localMod *Model) {
 	// Merge values. Replace values in map with same name
 	//
 	m.dataCache.MergeLocalValues(localMod.dataCache)
-	if localMod.RunAtStartDelay > 0 {
-		m.RunAtStartDelay = localMod.RunAtStartDelay
-	}
 	//
 	// Only override if defined in local file
 	//
-	for n, v := range localMod.RunAtStart {
-		m.RunAtStart[n] = v
+	for _, v := range localMod.RunAtStart {
+		m.RunAtStart = append(m.RunAtStart, v)
 		if m.debugLog.IsLogging() {
-			m.debugLog.WriteLog(fmt.Sprintf("Merging RunAtStart Action:%s Delay:%d", n, v))
+			m.debugLog.WriteLog(fmt.Sprintf("Merging: %s", v))
 		}
 	}
 	//
@@ -237,7 +246,7 @@ func (m *Model) MergeModel(localMod *Model) {
 
 }
 
-func (m *Model) GetActionDataForName(name string) (*ActionData, int, error) {
+func (m *Model) GetActionDataForName(name string) (*MultipleActionData, int, error) {
 	for i, a := range m.actionList {
 		if a.name == name {
 			return a, i, nil
@@ -451,8 +460,8 @@ func (m *Model) loadActions() error {
 	return nil
 }
 
-func (m *Model) GetTabs() (map[string][]*ActionData, string) {
-	resp := make(map[string][]*ActionData, 0)
+func (m *Model) GetTabs() (map[string][]*MultipleActionData, string) {
+	resp := make(map[string][]*MultipleActionData, 0)
 	singleName := ""
 	for _, a := range m.actionList {
 		if !a.shouldHide {
@@ -463,7 +472,7 @@ func (m *Model) GetTabs() (map[string][]*ActionData, string) {
 			}
 			existing, found := resp[singleName]
 			if !found {
-				existing = make([]*ActionData, 0)
+				existing = make([]*MultipleActionData, 0)
 			}
 			existing = append(existing, a)
 			resp[singleName] = existing
@@ -540,7 +549,7 @@ func (dc *Model) GetDataCache() *DataCache {
 	return dc.dataCache
 }
 
-func (p *Model) getActionData(name, tabName, desc, hide string, exitCode int) *ActionData {
+func (p *Model) getActionData(name, tabName, desc, hide string, exitCode int) *MultipleActionData {
 	for _, a1 := range p.actionList {
 		if a1.name == name && a1.desc == desc {
 			return a1
@@ -621,19 +630,19 @@ func getStringList(node parser.NodeC, name, msg string) ([]string, error) {
 	return resp, nil
 }
 
-func NewActionData(name, tabName, desc, hide string, exitCode int) *ActionData {
-	return &ActionData{name: name, tab: tabName, desc: desc, rc: exitCode, hideExp: hide, shouldHide: false, commands: make([]*SingleAction, 0)}
+func NewActionData(name, tabName, desc, hide string, exitCode int) *MultipleActionData {
+	return &MultipleActionData{name: name, tab: tabName, desc: desc, rc: exitCode, hideExp: hide, shouldHide: false, commands: make([]*SingleAction, 0)}
 }
 
 func NewSingleAction(cmd string, args []string, directory, sysinDef, outPwName, inPwName, sysoutDef, syserrDef string, delay float64, ignoreError bool) *SingleAction {
 	return &SingleAction{command: cmd, args: args, directory: directory, outPwName: outPwName, inPwName: inPwName, sysinDef: sysinDef, sysoutDef: sysoutDef, syserrDef: syserrDef, delay: delay, ignoreError: ignoreError}
 }
 
-func (p *ActionData) AddSingleAction(cmd string, args []string, directory, sysinDef, outPwName, inPwName, sysoutDef, syserrDef string, delay float64, ignoreError bool) {
+func (p *MultipleActionData) AddSingleAction(cmd string, args []string, directory, sysinDef, outPwName, inPwName, sysoutDef, syserrDef string, delay float64, ignoreError bool) {
 	sa := NewSingleAction(cmd, args, directory, sysinDef, outPwName, inPwName, sysoutDef, syserrDef, delay, ignoreError)
 	p.commands = append(p.commands, sa)
 }
 
-func (p *ActionData) len() int {
+func (p *MultipleActionData) len() int {
 	return len(p.commands)
 }

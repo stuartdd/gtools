@@ -30,6 +30,24 @@ type MyDialog struct {
 	isValid  func(string, *LocalValue) bool
 }
 
+func validatedEntryDialog(localValue *LocalValue) error {
+	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
+		return len(strings.TrimSpace(s)) >= iv.minLen
+	}, mainWindow, debugLogMain).Run(VALUE_DIALOG_TYPE).err
+}
+
+func sysInDialog(localValue *LocalValue) error {
+	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
+		return true
+	}, mainWindow, debugLogMain).Run(SYSIN_DIALOG_TYPE).err
+}
+
+func sysOutDialog(localValue *LocalValue) error {
+	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
+		return true
+	}, mainWindow, debugLogMain).Run(SYSOUT_DIALOG_TYPE).err
+}
+
 func NewMyDialog(value *LocalValue, validate func(string, *LocalValue) bool, parentWindow fyne.Window, debugLog *LogData) *MyDialog {
 	return &MyDialog{value: value, isValid: validate, parent: parentWindow, wait: true, err: nil, debugLog: debugLog}
 }

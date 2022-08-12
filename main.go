@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -21,10 +20,6 @@ const (
 	GREEN = "\033[;32m"
 	RED   = "\033[;31m"
 
-	RC_SETUP = -1
-	RC_CLEAN = 0
-	RC_ERROR = 1
-
 	CONFIG_FILE = "gtool-config.json"
 )
 
@@ -36,12 +31,14 @@ var (
 	actionRunning      bool = false
 	actionRunningLabel *widget.Label
 	debugLogMain       *LogData
+	refreshLock        sync.Mutex
+	notifyActionLock   sync.Mutex
 )
 
 type ActionButton struct {
 	widget.Button
-	action *ActionData
-	tapped func(action *ActionData)
+	action *MultipleActionData
+	tapped func(action *MultipleActionData)
 }
 
 func main() {
@@ -123,7 +120,9 @@ func main() {
 		}
 	}
 	model.Log()
-	runAtStartAll()
+	for _, ras := range model.RunAtStart {
+		execDelayedAction(ras.action, ras.delay, nil, model.dataCache)
+	}
 	gui()
 }
 
@@ -136,39 +135,13 @@ func warningAtStart() {
 	}
 }
 
-func runAtStartAll() {
-	for n, v := range model.RunAtStart {
-		runAtStart(n, v)
-	}
-}
-
-func runAtStart(name string, delay int) {
-	action, _, err := model.GetActionDataForName(name)
-	if err != nil {
-		exitApp(fmt.Sprintf("RunAtStart: %s", err.Error()), 1)
-	}
-
-	if debugLogMain.IsLogging() {
-		debugLogMain.WriteLog(fmt.Sprintf("Run At Start \"%s\". Delay %d ms", name, delay))
-	}
-
-	go func() {
-		if delay > 0 {
-			time.Sleep(time.Duration(delay) * time.Millisecond)
-		} else {
-			time.Sleep(time.Duration(100 * time.Millisecond))
-		}
-		execMultipleAction(action)
-	}()
-}
-
 func gui() {
 	a := app.NewWithID("stuartdd.gtest")
 	mainWindow = a.NewWindow("Main Window")
 	mainWindow.SetCloseIntercept(func() {
 		actionClose("", 0)
 	})
-	update(false)
+	refresh()
 	mainWindow.SetMaster()
 	mainWindow.SetIcon(IconGtool)
 	wd, err := os.Getwd()
@@ -183,7 +156,7 @@ func gui() {
 	mainWindow.ShowAndRun()
 }
 
-func newActionButton(label string, icon fyne.Resource, tapped func(action *ActionData), action *ActionData) *ActionButton {
+func newActionButton(label string, icon fyne.Resource, tapped func(action *MultipleActionData), action *MultipleActionData) *ActionButton {
 	ab := &ActionButton{action: action}
 	ab.ExtendBaseWidget(ab)
 	ab.SetIcon(icon)
@@ -195,14 +168,16 @@ func newActionButton(label string, icon fyne.Resource, tapped func(action *Actio
 	return ab
 }
 
-func update(doRunAtStart bool) {
+func refresh() {
+	refreshLock.Lock()
+	defer refreshLock.Unlock()
+
 	var c fyne.CanvasObject
 	bb := buttonBar()
 	for _, a := range model.actionList {
-		s, _ := SubstituteValuesIntoString(a.hideExp, nil)
+		s, _ := substituteValuesIntoString(a.hideExp, nil, model.dataCache)
 		a.shouldHide = strings.Contains(s, "%{") || s == "yes"
 	}
-
 	tabList, singleName := model.GetTabs()
 	if len(tabList) > 1 {
 		tabs := centerPanelTabbed(tabList)
@@ -219,12 +194,9 @@ func update(doRunAtStart bool) {
 		c = container.NewBorder(bb, nil, nil, nil, cp)
 	}
 	mainWindow.SetContent(c)
-	if doRunAtStart {
-		runAtStartAll()
-	}
 }
 
-func centerPanelTabbed(actionsByTab map[string][]*ActionData) *container.AppTabs {
+func centerPanelTabbed(actionsByTab map[string][]*MultipleActionData) *container.AppTabs {
 	tabs := container.NewAppTabs()
 	names := make([]string, 0)
 	for name := range actionsByTab {
@@ -247,20 +219,37 @@ func getNameAfterTag(in string) string {
 	return in
 }
 
-func centerPanel(actionData []*ActionData) *fyne.Container {
+func centerPanel(actionData []*MultipleActionData) *fyne.Container {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
 	min := 3
 	for _, l := range actionData {
 		if !l.shouldHide {
 			hp := container.NewHBox()
-			btn := newActionButton(l.name, theme.SettingsIcon(), func(action *ActionData) {
+			btn := newActionButton(l.name, theme.SettingsIcon(), func(action *MultipleActionData) {
 				if !actionRunning {
-					go execMultipleAction(action)
+					go func() {
+						execMultipleAction(action, func(state ActionState, name string, optional string, err error) int {
+							resp := 0
+							switch state {
+							case ERROR | WARN:
+								resp = WarnDialog(name, err.Error(), optional, mainWindow, 99, debugLogMain)
+							case DONE:
+								notifyActionRunning(false, name)
+								refresh()
+							case START:
+								notifyActionRunning(true, name)
+							case EXIT:
+								exitApp(name, 1)
+							}
+							return resp
+						}, model.dataCache)
+						refresh()
+					}()
 				}
 			}, l)
 			hp.Add(btn)
-			lab, err := SubstituteValuesIntoString(l.desc, nil)
+			lab, err := substituteValuesIntoString(l.desc, nil, model.dataCache)
 			if err != nil {
 				lab = l.desc
 			}
@@ -295,7 +284,17 @@ func buttonBar() *fyne.Container {
 			if debugLogMain.IsLogging() {
 				debugLogMain.WriteLog("Model Reloaded")
 			}
-			go update(true)
+			for _, ras := range model.RunAtStart {
+				execDelayedAction(ras.action, ras.delay, func(state ActionState, name string, err error) {
+					switch state {
+					case DONE | ERROR | WARN:
+						notifyActionRunning(false, name)
+						refresh()
+					case START:
+						notifyActionRunning(true, name)
+					}
+				}, model.dataCache)
+			}
 		}
 	}))
 	actionRunningLabel = widget.NewLabel("")
@@ -303,7 +302,9 @@ func buttonBar() *fyne.Container {
 	return bb
 }
 
-func setActionRunning(newState bool, name string) {
+func notifyActionRunning(newState bool, name string) {
+	notifyActionLock.Lock()
+	defer notifyActionLock.Unlock()
 	actionRunning = newState
 	if actionRunning {
 		actionRunningLabel.SetText(fmt.Sprintf("Running '%s'", name))
@@ -312,217 +313,13 @@ func setActionRunning(newState bool, name string) {
 	}
 }
 
-func validatedEntryDialog(localValue *LocalValue) error {
-	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
-		return len(strings.TrimSpace(s)) >= iv.minLen
-	}, mainWindow, debugLogMain).Run(VALUE_DIALOG_TYPE).err
-}
-
-func sysInDialog(localValue *LocalValue) error {
-	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
-		return true
-	}, mainWindow, debugLogMain).Run(SYSIN_DIALOG_TYPE).err
-}
-
-func sysOutDialog(localValue *LocalValue) error {
-	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
-		return true
-	}, mainWindow, debugLogMain).Run(SYSOUT_DIALOG_TYPE).err
-}
-
-func deriveKeyFromName(name string, sa *SingleAction) (string, error) {
-	if name != "" {
-		lv, ok := model.GetLocalValue(name)
-		if ok {
-			if lv.inputRequired && !lv.inputDone {
-				err := validatedEntryDialog(lv)
-				if err != nil {
-					return "", err
-				}
-			}
-			if lv.GetValue() == "" {
-				return "", fmt.Errorf("password not provided")
-			}
-			return lv.GetValue(), nil
-		}
-	}
-	return "", nil
-}
-
-func execMultipleAction(data *ActionData) {
-	setActionRunning(true, data.name)
-	if debugLogMain.IsLogging() {
-		debugLogMain.WriteLog("  Started " + data.String())
-	}
-	defer func() {
-		setActionRunning(false, "")
-		if debugLogMain.IsLogging() {
-			debugLogMain.WriteLog("  Ended " + data.String())
-		}
-	}()
-
-	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
-	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
-	for i, act := range data.commands {
-		locationMsg := fmt.Sprintf("Action '%s' step '%d' path '%s'", data.desc, i, act.Dir())
-		rc, err := execSingleAction(act, stdOut, stdErr, data.desc)
-		if err != nil {
-			if rc == RC_SETUP {
-				if debugLogMain.IsLogging() {
-					debugLogMain.WriteLog(fmt.Sprintf("    Error Setup: %s. %s ", err.Error(), act.String()))
-				}
-				WarnDialog(locationMsg, err.Error(), "", mainWindow, 10, debugLogMain)
-				return
-			}
-			if act.ignoreError {
-				if debugLogMain.IsLogging() {
-					debugLogMain.WriteLog(fmt.Sprintf("    Error Ignored: %s. %s ", err.Error(), act.String()))
-				}
-			} else {
-				if debugLogMain.IsLogging() {
-					debugLogMain.WriteLog(fmt.Sprintf("    Error: %s. %s ", err.Error(), act.String()))
-				}
-				exitOsMsg := fmt.Sprintf("Exit to OS with RC=%d", rc)
-				resp := WarnDialog(locationMsg, err.Error(), exitOsMsg, mainWindow, 99, debugLogMain)
-				if resp == 1 {
-					exitApp(fmt.Sprintf("%s. RC[%d] Error:%s", locationMsg, rc, err.Error()), rc)
-				}
-				return
-			}
-		}
-		if debugLogMain.IsLogging() {
-			debugLogMain.WriteLog(fmt.Sprintf("    Command: path:\"%s\" rc:%d cmd:\"%s %s\"", act.Dir(), rc, act.command, act.args))
-		}
-	}
-	if data.rc >= 0 {
-		exitApp("", data.rc)
-	}
-	update(false)
-}
-
-func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string) (int, error) {
-	outEncKey, err := deriveKeyFromName(sa.outPwName, sa)
-	if err != nil {
-		return RC_SETUP, err
-	}
-	inEncKey, err := deriveKeyFromName(sa.inPwName, sa)
-	if err != nil {
-		return RC_SETUP, err
-	}
-	args, err := SubstituteValuesIntoArgs(sa.args, validatedEntryDialog)
-	if err != nil {
-		return RC_SETUP, err
-	}
-	cmd := exec.Command(sa.command, args...)
-	if sa.directory != "" {
-		cmd.Dir = sa.directory
-	}
-	if sa.sysinDef != "" {
-		tmp, err := SubstituteValuesIntoString(sa.sysinDef, sysInDialog)
-		if err != nil {
-			return RC_SETUP, err
-		}
-		si, err := NewStringReader(tmp, cmd.Stdin, model.GetDataCache())
-		if err != nil {
-			return RC_SETUP, err
-		}
-		siCloser, ok := si.(io.ReadCloser)
-		if ok {
-			defer siCloser.Close()
-		}
-		encR, ok := si.(EncReader)
-		if ok {
-			encR.SetKey(inEncKey)
-		}
-		cmd.Stdin = si
-	}
-	sysoutDef, err := SubstituteValuesIntoString(sa.sysoutDef, sysOutDialog)
-	if err != nil {
-		return RC_SETUP, err
-	}
-	so := NewWriter(sysoutDef, outEncKey, stdOut, stdErr, model.GetDataCache())
-	soReset, reSoOk := so.(Reset)
-	if reSoOk {
-		soReset.Reset()
-	}
-	soCloser, soOk := so.(io.Closer)
-	if soOk {
-		defer soCloser.Close()
-	}
-	cmd.Stdout = so
-
-	syserrDef, err := SubstituteValuesIntoString(sa.syserrDef, sysOutDialog)
-	if err != nil {
-		return RC_SETUP, err
-	}
-	se := NewWriter(syserrDef, outEncKey, stdErr, stdErr, model.GetDataCache())
-	seReset, reSeOk := se.(Reset)
-	if reSeOk {
-		seReset.Reset()
-	}
-	seCloser, seOk := se.(io.Closer)
-	if seOk {
-		defer seCloser.Close()
-	}
-	cmd.Stderr = se
-
-	err = cmd.Start()
-	if err != nil {
-		return cmd.ProcessState.ExitCode(), err
-	}
-	err = cmd.Wait()
-	if err != nil {
-		return cmd.ProcessState.ExitCode(), err
-	}
-	if sa.delay > 0.0 {
-		time.Sleep(time.Duration(sa.delay) * time.Millisecond)
-	}
-	cp, ok := so.(ClipContent)
-	if ok {
-		if cp.ShouldClip() {
-			mainWindow.Clipboard().SetContent(cp.GetContent())
-		}
-	}
-	if outEncKey != "" {
-		soE, ok := so.(Encrypted)
-		if ok {
-			soE.WriteToEncryptedFile(outEncKey)
-		}
-	}
-	httpPost, ok := so.(*HttpPostWriter)
-	if ok {
-		err := httpPost.Post()
-		if err != nil {
-			return RC_ERROR, err
-		}
-	}
-
-	return RC_CLEAN, nil
-}
-
-func SubstituteValuesIntoArgs(s []string, entryDialog func(*LocalValue) error) ([]string, error) {
-	resp := make([]string, 0)
-	for _, v := range s {
-		tmp, err := SubstituteValuesIntoString(v, entryDialog)
-		if err != nil {
-			return nil, err
-		}
-		resp = append(resp, tmp)
-	}
-	return resp, nil
-}
-
-func SubstituteValuesIntoString(s string, entryDialog func(*LocalValue) error) (string, error) {
-	return model.GetDataCache().Template(s, entryDialog)
-}
-
 func actionClose(data string, code int) {
 	if model.RunAtEnd != "" {
 		action, _, err := model.GetActionDataForName(model.RunAtEnd)
 		if err != nil {
 			exitApp(err.Error(), 1)
 		}
-		execMultipleAction(action)
+		execMultipleAction(action, nil, model.dataCache)
 	}
 	mainWindow.Close()
 	exitApp(data, code)
