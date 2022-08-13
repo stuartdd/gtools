@@ -26,13 +26,14 @@ const (
 var (
 	stdColourPrefix    = []string{GREEN, RED}
 	mainWindow         fyne.Window
-	selectedTabIndex   int = -1
+	mainWindowActive   bool = false
+	selectedTabIndex   int  = -1
 	model              *Model
 	actionRunning      bool = false
 	actionRunningLabel *widget.Label
 	debugLogMain       *LogData
 	refreshLock        sync.Mutex
-	notifyActionLock   sync.Mutex
+	notifyChannel      chan *NotifyMessage
 )
 
 type ActionButton struct {
@@ -109,21 +110,40 @@ func main() {
 	if err != nil {
 		exitApp(err.Error(), 1)
 	}
-
-	if model.RunAtEnd != "" {
-		_, _, err := model.GetActionDataForName(model.RunAtEnd)
-		if err != nil {
-			exitApp(fmt.Sprintf("RunAtEnd: %s", err.Error()), 1)
-		}
-		if debugLogMain.IsLogging() {
-			debugLogMain.WriteLog(fmt.Sprintf("Run At End \"%s\"", model.RunAtEnd))
-		}
-	}
+	model.ValidateBackgroundTasks()
 	model.Log()
+	notifyChannel = make(chan *NotifyMessage, 1)
+	go listenNotifyChannel()
 	for _, ras := range model.RunAtStart {
-		execDelayedAction(ras.action, ras.delay, nil, model.dataCache)
+		execDelayedAction(ras.action, ras.delay, notifyChannel, model.dataCache)
 	}
 	gui()
+}
+
+func listenNotifyChannel() {
+	for {
+		notifyMessage := <-notifyChannel
+		if debugLogMain.IsLogging() {
+			debugLogMain.WriteLog(notifyMessage.String())
+		}
+		if mainWindowActive {
+			switch notifyMessage.state {
+			case WARN:
+				WarnDialog(notifyMessage.action.name, notifyMessage.err.Error(), notifyMessage.message, mainWindow, 99, debugLogMain)
+				refresh()
+			case DONE:
+				notifyActionRunning(false, notifyMessage.action.name)
+				refresh()
+			case START:
+				notifyActionRunning(true, notifyMessage.action.name)
+			case ERROR:
+				refresh()
+			case EXIT:
+				exitApp(notifyMessage.message, notifyMessage.code)
+			case LOG:
+			}
+		}
+	}
 }
 
 func warningAtStart() {
@@ -153,6 +173,7 @@ func gui() {
 	mainWindow.Resize(fyne.NewSize(300, 100))
 	mainWindow.SetFixedSize(true)
 	warningAtStart()
+	mainWindowActive = true
 	mainWindow.ShowAndRun()
 }
 
@@ -229,22 +250,7 @@ func centerPanel(actionData []*MultipleActionData) *fyne.Container {
 			btn := newActionButton(l.name, theme.SettingsIcon(), func(action *MultipleActionData) {
 				if !actionRunning {
 					go func() {
-						execMultipleAction(action, func(state ActionState, name string, optional string, err error) int {
-							resp := 0
-							switch state {
-							case ERROR | WARN:
-								resp = WarnDialog(name, err.Error(), optional, mainWindow, 99, debugLogMain)
-							case DONE:
-								notifyActionRunning(false, name)
-								refresh()
-							case START:
-								notifyActionRunning(true, name)
-							case EXIT:
-								exitApp(name, 1)
-							}
-							return resp
-						}, model.dataCache)
-						refresh()
+						execMultipleAction(action, notifyChannel, model.dataCache)
 					}()
 				}
 			}, l)
@@ -285,15 +291,7 @@ func buttonBar() *fyne.Container {
 				debugLogMain.WriteLog("Model Reloaded")
 			}
 			for _, ras := range model.RunAtStart {
-				execDelayedAction(ras.action, ras.delay, func(state ActionState, name string, err error) {
-					switch state {
-					case DONE | ERROR | WARN:
-						notifyActionRunning(false, name)
-						refresh()
-					case START:
-						notifyActionRunning(true, name)
-					}
-				}, model.dataCache)
+				execDelayedAction(ras.action, ras.delay, notifyChannel, model.dataCache)
 			}
 		}
 	}))
@@ -303,8 +301,6 @@ func buttonBar() *fyne.Container {
 }
 
 func notifyActionRunning(newState bool, name string) {
-	notifyActionLock.Lock()
-	defer notifyActionLock.Unlock()
 	actionRunning = newState
 	if actionRunning {
 		actionRunningLabel.SetText(fmt.Sprintf("Running '%s'", name))
@@ -314,12 +310,10 @@ func notifyActionRunning(newState bool, name string) {
 }
 
 func actionClose(data string, code int) {
-	if model.RunAtEnd != "" {
-		action, _, err := model.GetActionDataForName(model.RunAtEnd)
-		if err != nil {
-			exitApp(err.Error(), 1)
+	for _, rae := range model.RunAtEnd {
+		if rae != nil && rae.action != nil {
+			execMultipleAction(rae.action, notifyChannel, model.dataCache)
 		}
-		execMultipleAction(action, nil, model.dataCache)
 	}
 	mainWindow.Close()
 	exitApp(data, code)

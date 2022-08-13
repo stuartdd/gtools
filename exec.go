@@ -7,47 +7,32 @@ import (
 	"time"
 )
 
-type ActionState int
-
 const (
 	RC_SETUP = -1
 	RC_CLEAN = 0
 	RC_ERROR = 1
-
-	DONE ActionState = iota
-	START
-	WARN
-	ERROR
-	EXIT
 )
 
-func execDelayedAction(action *MultipleActionData, delay int, notifyActionState func(ActionState, string, string, error) int, dataCache *DataCache) {
-	if debugLogMain.IsLogging() {
-		debugLogMain.WriteLog(fmt.Sprintf("Run action \"%s\" delayed %d ms", action, delay))
+func execDelayedAction(action *MultipleActionData, delay int, notifyChannel chan *NotifyMessage, dataCache *DataCache) {
+	if delay == 0 {
+		delay = 100
+	}
+	if notifyChannel != nil {
+		notifyChannel <- NewNotifyMessage(LOG, action, "RunAtStart", fmt.Sprintf("delay = %d ms", delay), RC_CLEAN, nil)
 	}
 	go func() {
-		if delay > 0 {
-			time.Sleep(time.Duration(delay) * time.Millisecond)
-		} else {
-			time.Sleep(time.Duration(100 * time.Millisecond))
-		}
-		execMultipleAction(action, notifyActionState, dataCache)
+		time.Sleep(time.Duration(delay) * time.Millisecond)
+		execMultipleAction(action, notifyChannel, dataCache)
 	}()
 }
 
-func execMultipleAction(data *MultipleActionData, notifyActionState func(ActionState, string, string, error) int, dataCache *DataCache) {
-	if notifyActionState != nil {
-		notifyActionState(START, data.name, "", nil)
-	}
-	if debugLogMain.IsLogging() {
-		debugLogMain.WriteLog("  Started " + data.String())
+func execMultipleAction(data *MultipleActionData, notifyChannel chan *NotifyMessage, dataCache *DataCache) {
+	if notifyChannel != nil {
+		notifyChannel <- NewNotifyMessage(START, data, "Action Started", "", RC_CLEAN, nil)
 	}
 	defer func() {
-		if notifyActionState != nil {
-			notifyActionState(DONE, data.name, "", nil)
-		}
-		if debugLogMain.IsLogging() {
-			debugLogMain.WriteLog("  Ended " + data.String())
+		if notifyChannel != nil {
+			notifyChannel <- NewNotifyMessage(DONE, data, "Action Complete", "", RC_CLEAN, nil)
 		}
 	}()
 
@@ -58,38 +43,23 @@ func execMultipleAction(data *MultipleActionData, notifyActionState func(ActionS
 		rc, err := execSingleAction(act, stdOut, stdErr, data.desc, dataCache)
 		if err != nil {
 			if rc == RC_SETUP {
-				if debugLogMain.IsLogging() {
-					debugLogMain.WriteLog(fmt.Sprintf("    Error Setup: %s. %s ", err.Error(), act.String()))
-				}
-				if notifyActionState != nil {
-					notifyActionState(WARN, locationMsg, "", err)
+				if notifyChannel != nil {
+					notifyChannel <- NewNotifyMessage(ERROR, data, "Error Setup", locationMsg, rc, err)
 				}
 				return
 			}
 			if act.ignoreError {
 				if debugLogMain.IsLogging() {
-					debugLogMain.WriteLog(fmt.Sprintf("    Error Ignored: %s. %s ", err.Error(), act.String()))
+					debugLogMain.WriteLog(fmt.Sprintf("Error is Ignored: %s. %s ", err.Error(), act.String()))
 				}
 			} else {
-				if debugLogMain.IsLogging() {
-					debugLogMain.WriteLog(fmt.Sprintf("    Error: %s. %s ", err.Error(), act.String()))
-				}
 				exitOsMsg := fmt.Sprintf("Exit to OS with RC=%d", rc)
-				if notifyActionState != nil {
-					resp := notifyActionState(WARN, locationMsg, exitOsMsg, err)
-					if resp == 1 {
-						exitApp(fmt.Sprintf("%s. RC[%d] Error:%s", locationMsg, rc, err.Error()), rc)
-					}
+				if notifyChannel != nil {
+					notifyChannel <- NewNotifyMessage(WARN, data, "Error", exitOsMsg, rc, err)
 				}
 				return
 			}
 		}
-		if debugLogMain.IsLogging() {
-			debugLogMain.WriteLog(fmt.Sprintf("    Command: path:\"%s\" rc:%d cmd:\"%s %s\"", act.Dir(), rc, act.command, act.args))
-		}
-	}
-	if data.rc >= 0 {
-		exitApp("", data.rc)
 	}
 }
 
@@ -189,7 +159,6 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 			return RC_ERROR, err
 		}
 	}
-
 	return RC_CLEAN, nil
 }
 

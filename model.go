@@ -11,6 +11,7 @@ import (
 )
 
 type ENUM_MEM_TYPE int
+type BG_ACTION_TYPE int
 
 const (
 	STD_OUT = 0
@@ -22,6 +23,10 @@ const (
 	FILE_TYPE
 	STR_TYPE
 	HTTP_TYPE
+
+	BG_ACTION_AT_START BG_ACTION_TYPE = iota
+	BG_ACTION_AT_END
+	BG_ACTION
 )
 
 var (
@@ -51,8 +56,8 @@ type Model struct {
 	dataCache    *DataCache            // List of values
 	AltExitTitle string                // Show additional butten to exit with RC 1
 	AltExitRc    int                   // Show additional butten to exit with RC 1
-	RunAtStart   []*RunAtStartAction   // Action to run on load
-	RunAtEnd     string                // Action to run on exit
+	RunAtStart   []*BackgroundAction   // Action to run on load
+	RunAtEnd     []*BackgroundAction   // Action to run on exit
 	warning      string                // If the model loads dut with warnings
 }
 
@@ -66,13 +71,22 @@ type MultipleActionData struct {
 	commands   []*SingleAction // The list of actions (commands) to execute for this action
 }
 
-type RunAtStartAction struct {
-	action *MultipleActionData
+type BackgroundAction struct {
+	bgType BG_ACTION_TYPE
+	name   string
 	delay  int
+	action *MultipleActionData
 }
 
-func (ras *RunAtStartAction) String() string {
-	return fmt.Sprintf("RunAtStart:\"%s\" after:\"%d\" milliseconds", ras.action, ras.delay)
+func (bga *BackgroundAction) String() string {
+	switch bga.bgType {
+	case BG_ACTION_AT_START:
+		return fmt.Sprintf("RunAtStart: name:\"%s\" after:%d milliseconds", bga.name, bga.delay)
+	case BG_ACTION_AT_END:
+		return fmt.Sprintf("RunAtEnd: name:\"%s\"", bga.name)
+	default:
+		return fmt.Sprintf("Background: name:\"%s\"", bga.name)
+	}
 }
 
 func (mad *MultipleActionData) String() string {
@@ -162,20 +176,26 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig
 		mod.AltExitRc = 0
 	}
 	//
-	// Keep a map of the runAtStart/runAtStartDelay parameters from each model
+	// Keep a list of the runAtStart/runAtStartDelay parameters from each model
 	//
-	mod.RunAtStart = make([]*RunAtStartAction, 0)
+	mod.RunAtStart = make([]*BackgroundAction, 0)
 	ras := mod.getStringWithFallback(runAtStartPrefName, "")
-	rasD := mod.getIntWithFallback(runAtStartDelayPrefName, 100)
 	if ras != "" {
-		act, _, err := mod.GetActionDataForName(ras)
-		if err != nil {
-			return nil, err
+		rasD := mod.getIntWithFallback(runAtStartDelayPrefName, 100)
+		mod.RunAtStart = append(mod.RunAtStart, &BackgroundAction{bgType: BG_ACTION_AT_START, name: ras, delay: rasD})
+		if debugLog.IsLogging() {
+			debugLog.WriteLog(fmt.Sprintf("Adding RunAtStart \"%s\" from file \"%s\"", ras, absFileName))
 		}
-		mod.RunAtStart = append(mod.RunAtStart, &RunAtStartAction{action: act, delay: rasD})
 	}
-	//
-	mod.RunAtEnd = mod.getStringWithFallback(runAtEndPrefName, "")
+	mod.RunAtEnd = make([]*BackgroundAction, 0)
+	rae := mod.getStringWithFallback(runAtEndPrefName, "")
+	if rae != "" {
+		mod.RunAtEnd = append(mod.RunAtEnd, &BackgroundAction{bgType: BG_ACTION_AT_END, name: rae, delay: 0})
+		if debugLog.IsLogging() {
+			debugLog.WriteLog(fmt.Sprintf("Adding RunAtEnd \"%s\" from file \"%s\"", rae, absFileName))
+		}
+	}
+
 	if primaryConfig {
 		localConfigFile := mod.getStringWithFallback(localConfigPrefName, "")
 		if localConfigFile != "" {
@@ -194,7 +214,6 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig
 					} else {
 						return nil, err
 					}
-
 				}
 			} else {
 				if debugLog.IsLogging() {
@@ -208,7 +227,7 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig
 
 func (m *Model) MergeModel(localMod *Model) {
 	if m.debugLog.IsLogging() {
-		m.debugLog.WriteLog(fmt.Sprintf("Merging model \"%s\"", localMod.fileName))
+		m.debugLog.WriteLog(fmt.Sprintf("***** Merging model \"%s\"", localMod.fileName))
 	}
 	//
 	// Merge actions
@@ -218,22 +237,46 @@ func (m *Model) MergeModel(localMod *Model) {
 		if index < 0 {
 			// Add NEW action
 			m.actionList = append(m.actionList, ac)
+			if m.debugLog.IsLogging() {
+				m.debugLog.WriteLog(fmt.Sprintf("Adding Action: %s from file \"%s\"", ac, localMod.fileName))
+			}
 		} else {
 			// Override Existing action
 			m.actionList[index] = ac
+			if m.debugLog.IsLogging() {
+				m.debugLog.WriteLog(fmt.Sprintf("Overriding Action: %s from file \"%s\"", ac, localMod.fileName))
+			}
 		}
 	}
 	//
 	// Merge values. Replace values in map with same name
 	//
-	m.dataCache.MergeLocalValues(localMod.dataCache)
+	m.dataCache.MergeLocalValuesMap(localMod.dataCache)
 	//
-	// Only override if defined in local file
+	// Accumulate RunAtStart and RunAtEnd. Dont add duplicates.
 	//
-	for _, v := range localMod.RunAtStart {
-		m.RunAtStart = append(m.RunAtStart, v)
-		if m.debugLog.IsLogging() {
-			m.debugLog.WriteLog(fmt.Sprintf("Merging: %s", v))
+	for _, ras := range localMod.RunAtStart {
+		if backgroundTaskNotDuplicate(ras, localMod.RunAtStart) {
+			m.RunAtStart = append(m.RunAtStart, ras)
+			if m.debugLog.IsLogging() {
+				m.debugLog.WriteLog(fmt.Sprintf("Merging: %s", ras))
+			}
+		} else {
+			if m.debugLog.IsLogging() {
+				m.debugLog.WriteLog(fmt.Sprintf("Skipping Duplicate: %s from file \"%s\"", ras, localMod.fileName))
+			}
+		}
+	}
+	for _, rae := range localMod.RunAtEnd {
+		if backgroundTaskNotDuplicate(rae, localMod.RunAtEnd) {
+			m.RunAtEnd = append(m.RunAtEnd, rae)
+			if m.debugLog.IsLogging() {
+				m.debugLog.WriteLog(fmt.Sprintf("Merging: %s", rae))
+			}
+		} else {
+			if m.debugLog.IsLogging() {
+				m.debugLog.WriteLog(fmt.Sprintf("Skipping Duplicate: %s from file \"%s\"", rae, localMod.fileName))
+			}
 		}
 	}
 	//
@@ -244,6 +287,33 @@ func (m *Model) MergeModel(localMod *Model) {
 		m.AltExitRc = localMod.AltExitRc
 	}
 
+}
+
+func backgroundTaskNotDuplicate(needle *BackgroundAction, hayStack []*BackgroundAction) bool {
+	for _, b := range hayStack {
+		if b == needle {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *Model) ValidateBackgroundTasks() error {
+	for _, bgas := range m.RunAtStart {
+		rass, _, errs := m.GetActionDataForName(bgas.name)
+		if errs != nil {
+			return errs
+		}
+		bgas.action = rass
+	}
+	for _, bgae := range m.RunAtEnd {
+		rase, _, erre := m.GetActionDataForName(bgae.name)
+		if erre != nil {
+			return erre
+		}
+		bgae.action = rase
+	}
+	return nil
 }
 
 func (m *Model) GetActionDataForName(name string) (*MultipleActionData, int, error) {
@@ -312,6 +382,12 @@ func (m *Model) Log() {
 	if m.debugLog.IsLogging() {
 		m.debugLog.WriteLog("***** Final State of the Model:")
 		m.dataCache.LogLocalValues(m.debugLog)
+		for _, ras := range m.RunAtStart {
+			m.debugLog.WriteLog(ras.String())
+		}
+		for _, ras := range m.RunAtEnd {
+			m.debugLog.WriteLog(ras.String())
+		}
 		for _, ad := range m.actionList {
 			m.debugLog.WriteLog(ad.String())
 			for _, sa := range ad.commands {

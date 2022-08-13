@@ -98,7 +98,7 @@ func (dc *DataCache) GetLocalValue(name string) (*LocalValue, bool) {
 	return lv, found
 }
 
-func (dc *DataCache) MergeLocalValues(localMod *DataCache) {
+func (dc *DataCache) MergeLocalValuesMap(localMod *DataCache) {
 	for n, v := range localMod.localVarMap {
 		dc.localVarMap[n] = v
 	}
