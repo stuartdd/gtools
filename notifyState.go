@@ -7,8 +7,10 @@ type NotifyMessageState int
 const (
 	DONE NotifyMessageState = iota
 	START
-	WARN
+	CMD_RC
+	EXIT_RC
 	ERROR
+	WARN
 	EXIT
 	LOG
 )
@@ -30,7 +32,14 @@ func (nm *NotifyMessage) getError() string {
 	if nm.err == nil {
 		return ""
 	}
-	return fmt.Sprintf(" err:\"%s\"", nm.err.Error())
+	return fmt.Sprintf(" error:\"%s\"", nm.err.Error())
+}
+
+func (nm *NotifyMessage) getMsg() string {
+	if nm.message == "" {
+		return ""
+	}
+	return fmt.Sprintf(" msg:\"%s\"", nm.message)
 }
 
 func (nm *NotifyMessage) getNote() string {
@@ -49,22 +58,29 @@ func (nm *NotifyMessage) getCode() string {
 
 func (nm *NotifyMessage) getState() string {
 	switch nm.state {
-	case WARN:
-		return "WARN: "
+	case CMD_RC:
+		return "CMD_RC: "
+	case EXIT_RC:
+		return "EXIT_RC:"
 	case ERROR:
-		return "ERROR:"
+		return "ERROR:  "
+	case WARN:
+		return "WARN:   "
 	case DONE:
-		return "DONE: "
+		return "DONE:   "
 	case START:
-		return "START:"
+		return "START:  "
 	case EXIT:
-		return "EXIT: "
+		return "EXIT:   "
 	case LOG:
-		return "LOG:  "
+		return "LOG:    "
 	}
-	return "?????:"
+	return "??????:"
 }
 
 func (nm *NotifyMessage) String() string {
-	return fmt.Sprintf("Event %s action:\"%s\" msg:\"%s\"%s%s%s", nm.getState(), nm.action.name, nm.message, nm.getNote(), nm.getCode(), nm.getError())
+	if nm.action == nil {
+		return fmt.Sprintf("Event %s%s%s%s%s", nm.getState(), nm.getMsg(), nm.getNote(), nm.getCode(), nm.getError())
+	}
+	return fmt.Sprintf("Event %s action:\"%s\"%s%s%s%s", nm.getState(), nm.action.name, nm.getMsg(), nm.getNote(), nm.getCode(), nm.getError())
 }

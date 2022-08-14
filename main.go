@@ -47,7 +47,7 @@ func main() {
 	var path string
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		exitApp(err.Error(), 1)
+		NewNotifyMessage(ERROR, nil, "Load Error", "", 1, err)
 	}
 
 	args := os.Args
@@ -57,19 +57,13 @@ func main() {
 	logFileName := ""
 	clearLog := false
 	for i := 1; i < aLen; i++ {
-		if args[i] == "-c" {
-			if (i + 1) >= aLen {
-				exitApp("-c config name is undefined", 1)
-			}
-			configFileName = os.Args[i+1]
-			i++
+		configFileName, err = getArg(i, "-c", configFileName)
+		if err != nil {
+			exitApp(NewNotifyMessage(ERROR, nil, "", "", 1, err))
 		}
-		if args[i] == "-l" {
-			if (i + 1) >= aLen {
-				exitApp("-l log name is undefined", 1)
-			}
-			logFileName = os.Args[i+1]
-			i++
+		logFileName, err = getArg(i, "-l", logFileName)
+		if err != nil {
+			exitApp(NewNotifyMessage(ERROR, nil, "", "", 1, err))
 		}
 		if args[i] == "-lc" {
 			clearLog = true
@@ -81,7 +75,7 @@ func main() {
 	} else {
 		debugLogMain, err = NewLogData(logFileName, "gtool:", clearLog)
 		if err != nil {
-			exitApp(fmt.Sprintf("Failed to create logfile '%s'. Error:%s", logFileName, err.Error()), 1)
+			exitApp(NewNotifyMessage(ERROR, nil, fmt.Sprintf("Failed to create logfile '%s'", logFileName), "", 1, err))
 		}
 	}
 
@@ -95,22 +89,25 @@ func main() {
 				if err != nil {
 					_, isPathErr = err.(*os.PathError)
 					if isPathErr {
-						exitApp(fmt.Sprintf("Both\nuser config data '%s' and\nlocal config data '%s' could not be found.\nUse '-c configFileName' for alternative", path, CONFIG_FILE), 1)
+						exitApp(NewNotifyMessage(ERROR, nil, fmt.Sprintf("Both\nUser config data '%s' and\nLocal config data '%s'\ncould not be found.\nUse '-c=configFileName' for alternative", path, CONFIG_FILE), "", 1, err))
 					} else {
-						exitApp(err.Error(), 1)
+						exitApp(NewNotifyMessage(ERROR, nil, "Model Load Error", "", 1, err))
 					}
 				}
 			} else {
-				exitApp(err.Error(), 1)
+				exitApp(NewNotifyMessage(ERROR, nil, "Model Load Error", "", 1, err))
 			}
 		}
 	} else {
 		model, err = NewModelFromFile(homeDir, configFileName, debugLogMain, true)
 	}
 	if err != nil {
-		exitApp(err.Error(), 1)
+		exitApp(NewNotifyMessage(ERROR, nil, "Model Load Error", "", 1, err))
 	}
-	model.ValidateBackgroundTasks()
+	err = model.ValidateBackgroundTasks()
+	if err != nil {
+		exitApp(NewNotifyMessage(ERROR, nil, "Model Validate Background Tasks Error", "", 1, err))
+	}
 	model.Log()
 	notifyChannel = make(chan *NotifyMessage, 1)
 	go listenNotifyChannel()
@@ -128,18 +125,25 @@ func listenNotifyChannel() {
 		}
 		if mainWindowActive {
 			switch notifyMessage.state {
-			case WARN:
-				WarnDialog(notifyMessage.action.name, notifyMessage.err.Error(), notifyMessage.message, mainWindow, 99, debugLogMain)
-				refresh()
 			case DONE:
 				notifyActionRunning(false, notifyMessage.action.name)
 				refresh()
 			case START:
 				notifyActionRunning(true, notifyMessage.action.name)
+			case CMD_RC:
+				rc := WarnDialog(fmt.Sprintf("Action '%s' failed:", notifyMessage.action.name), notifyMessage.err.Error(), notifyMessage.message, mainWindow, 99, debugLogMain)
+				notifyActionRunning(false, notifyMessage.action.name)
+				if rc == 1 {
+					exitApp(notifyMessage)
+				}
+				refresh()
 			case ERROR:
+				WarnDialog(fmt.Sprintf("Action '%s' failed:", notifyMessage.action.name), notifyMessage.err.Error(), "", mainWindow, 8, debugLogMain)
+				refresh()
+			case WARN:
 				refresh()
 			case EXIT:
-				exitApp(notifyMessage.message, notifyMessage.code)
+				exitApp(notifyMessage)
 			case LOG:
 			}
 		}
@@ -148,8 +152,13 @@ func listenNotifyChannel() {
 
 func warningAtStart() {
 	if model.warning != "" {
+		if debugLogMain.IsLogging() {
+			debugLogMain.WriteLog(NewNotifyMessage(WARN, nil, model.warning, "", 0, nil).String())
+		}
 		go func() {
-			time.Sleep(500 * time.Millisecond)
+			for !mainWindowActive {
+				time.Sleep(500 * time.Millisecond)
+			}
 			WarnDialog("Data Load Error", model.warning, "", mainWindow, 5, debugLogMain)
 		}()
 	}
@@ -159,7 +168,7 @@ func gui() {
 	a := app.NewWithID("stuartdd.gtest")
 	mainWindow = a.NewWindow("Main Window")
 	mainWindow.SetCloseIntercept(func() {
-		actionClose("", 0)
+		actionClose(NewNotifyMessage(EXIT, nil, "Close intercept", "", 0, nil))
 	})
 	refresh()
 	mainWindow.SetMaster()
@@ -274,17 +283,17 @@ func centerPanel(actionData []*MultipleActionData) *fyne.Container {
 func buttonBar() *fyne.Container {
 	bb := container.NewHBox()
 	bb.Add(widget.NewButtonWithIcon("Close", theme.LogoutIcon(), func() {
-		actionClose("", 0)
+		actionClose(NewNotifyMessage(EXIT, nil, "Exit 0", "", 0, nil))
 	}))
 	if model.AltExitTitle != "" {
 		bb.Add(widget.NewButtonWithIcon(model.AltExitTitle, theme.LogoutIcon(), func() {
-			actionClose(fmt.Sprintf("AltCloseAction: '%s'", model.AltExitTitle), model.AltExitRc)
+			actionClose(NewNotifyMessage(EXIT, nil, "Alt Exit 0", "", model.AltExitRc, nil))
 		}))
 	}
 	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
 		m, err := NewModelFromFile(model.homePath, model.fileName, debugLogMain, true)
 		if err != nil {
-			fmt.Printf("Failed to reload")
+			go WarnDialog("Reload Failed", err.Error(), "", mainWindow, 20, debugLogMain)
 		} else {
 			model = m
 			if debugLogMain.IsLogging() {
@@ -309,27 +318,48 @@ func notifyActionRunning(newState bool, name string) {
 	}
 }
 
-func actionClose(data string, code int) {
+func actionClose(data *NotifyMessage) {
 	for _, rae := range model.RunAtEnd {
 		if rae != nil && rae.action != nil {
 			execMultipleAction(rae.action, notifyChannel, model.dataCache)
 		}
 	}
 	mainWindow.Close()
-	exitApp(data, code)
+	exitApp(data)
 }
 
-func exitApp(data string, code int) {
-	if debugLogMain.IsLogging() {
-		debugLogMain.WriteLog(fmt.Sprintf("Exit: code:%d message:\"%s\"", code, data))
-	}
-	if code != 0 {
-		fmt.Printf("%sEXIT CODE[%d]:%s%s\n", stdColourPrefix[STD_ERR], code, data, RESET)
+func exitApp(data *NotifyMessage) {
+	if debugLogMain != nil && debugLogMain.IsLogging() {
+		debugLogMain.WriteLog(data.String())
 	} else {
-		if data != "" {
-			fmt.Printf("%s%s%s\n", stdColourPrefix[STD_OUT], data, RESET)
+		if data.code != 0 {
+			fmt.Printf("%sEXIT CODE[%d]:%s%s\n", stdColourPrefix[STD_ERR], data.code, data, RESET)
+		} else {
+			if data != nil {
+				fmt.Printf("%s%s%s\n", stdColourPrefix[STD_OUT], data.String(), RESET)
+			}
 		}
 	}
-	debugLogMain.Close()
-	os.Exit(code)
+	if debugLogMain != nil {
+		debugLogMain.Close()
+	}
+	os.Exit(data.code)
+}
+
+func getArg(i int, name, value string) (string, error) {
+	if value != "" {
+		return value, nil
+	}
+	l := 2
+	if strings.HasPrefix(os.Args[i], name) {
+		if strings.HasPrefix(os.Args[i], name+"=") {
+			l = 3
+		}
+		s := os.Args[i][l:]
+		if len(s) < 1 {
+			return "", fmt.Errorf("parameter '%s' value is undefined", name)
+		}
+		return s, nil
+	}
+	return "", nil
 }

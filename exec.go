@@ -35,7 +35,6 @@ func execMultipleAction(data *MultipleActionData, notifyChannel chan *NotifyMess
 			notifyChannel <- NewNotifyMessage(DONE, data, "Action Complete", "", RC_CLEAN, nil)
 		}
 	}()
-
 	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
 	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
 	for i, act := range data.commands {
@@ -49,13 +48,13 @@ func execMultipleAction(data *MultipleActionData, notifyChannel chan *NotifyMess
 				return
 			}
 			if act.ignoreError {
-				if debugLogMain.IsLogging() {
-					debugLogMain.WriteLog(fmt.Sprintf("Error is Ignored: %s. %s ", err.Error(), act.String()))
+				if notifyChannel != nil {
+					notifyChannel <- NewNotifyMessage(WARN, data, locationMsg, "", rc, err)
 				}
 			} else {
 				exitOsMsg := fmt.Sprintf("Exit to OS with RC=%d", rc)
 				if notifyChannel != nil {
-					notifyChannel <- NewNotifyMessage(WARN, data, "Error", exitOsMsg, rc, err)
+					notifyChannel <- NewNotifyMessage(CMD_RC, data, exitOsMsg, "", rc, err)
 				}
 				return
 			}

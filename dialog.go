@@ -53,9 +53,6 @@ func NewMyDialog(value *LocalValue, validate func(string, *LocalValue) bool, par
 }
 
 func WarnDialog(title, message, additional string, parentWindow fyne.Window, timeout int, debugLog *LogData) int {
-	if debugLog.IsLogging() {
-		debugLog.WriteLog(fmt.Sprintf("    Warning: title:\"%s\" message:\"%s\" additional:\"%s\"", title, message, additional))
-	}
 	message = strings.ReplaceAll(message, "'. ", "'.\n")
 	wait := true
 	rc := 0
@@ -98,7 +95,7 @@ func WarnDialog(title, message, additional string, parentWindow fyne.Window, tim
 func (d *MyDialog) commit(s string) {
 	d.value.SetValue(s)
 	if d.debugLog.IsLogging() {
-		d.debugLog.WriteLog(fmt.Sprintf("    Dialog commit: Value:\"%s\"", d.value))
+		d.debugLog.WriteLog(fmt.Sprintf("      Dialog commit: Value:\"%s\"", d.value))
 	}
 	d.value.inputDone = true
 	d.wait = false
@@ -106,7 +103,7 @@ func (d *MyDialog) commit(s string) {
 
 func (d *MyDialog) abort(s string) {
 	if d.debugLog.IsLogging() {
-		d.debugLog.WriteLog(fmt.Sprintf("    Dialog abort:\"%s\" Value:\"%s\"", s, d.value))
+		d.debugLog.WriteLog(fmt.Sprintf("      Dialog abort:\"%s\" Value:\"%s\"", s, d.value))
 	}
 	d.err = fmt.Errorf(s)
 	d.wait = false
