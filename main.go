@@ -50,25 +50,15 @@ func main() {
 		NewNotifyMessage(ERROR, nil, "Load Error", "", 1, err)
 	}
 
-	args := os.Args
-	aLen := len(args)
-
-	configFileName := ""
-	logFileName := ""
-	clearLog := false
-	for i := 1; i < aLen; i++ {
-		configFileName, err = getArg(i, "-c", configFileName)
-		if err != nil {
-			exitApp(NewNotifyMessage(ERROR, nil, "", "", 1, err))
-		}
-		logFileName, err = getArg(i, "-l", logFileName)
-		if err != nil {
-			exitApp(NewNotifyMessage(ERROR, nil, "", "", 1, err))
-		}
-		if args[i] == "-lc" {
-			clearLog = true
-		}
+	configFileName, err := getArg("-c")
+	if err != nil {
+		exitApp(NewNotifyMessage(ERROR, nil, "", "", 1, err))
 	}
+	logFileName, err := getArg("-l")
+	if err != nil {
+		exitApp(NewNotifyMessage(ERROR, nil, "", "", 1, err))
+	}
+	clearLog := hasArg("-lc")
 
 	if logFileName == "" {
 		debugLogMain = &LogData{logger: nil, queue: nil}
@@ -78,14 +68,15 @@ func main() {
 			exitApp(NewNotifyMessage(ERROR, nil, fmt.Sprintf("Failed to create logfile '%s'", logFileName), "", 1, err))
 		}
 	}
+	notifyChannel = make(chan *NotifyMessage, 1)
 
 	if configFileName == "" {
 		path = homeDir + string(os.PathSeparator) + CONFIG_FILE
-		model, err = NewModelFromFile(homeDir, path, debugLogMain, true)
+		model, err = NewModelFromFile(homeDir, path, debugLogMain, true, notifyChannel)
 		if err != nil {
 			_, isPathErr := err.(*os.PathError)
 			if isPathErr {
-				model, err = NewModelFromFile(homeDir, CONFIG_FILE, debugLogMain, true)
+				model, err = NewModelFromFile(homeDir, CONFIG_FILE, debugLogMain, true, notifyChannel)
 				if err != nil {
 					_, isPathErr = err.(*os.PathError)
 					if isPathErr {
@@ -99,7 +90,7 @@ func main() {
 			}
 		}
 	} else {
-		model, err = NewModelFromFile(homeDir, configFileName, debugLogMain, true)
+		model, err = NewModelFromFile(homeDir, configFileName, debugLogMain, true, notifyChannel)
 	}
 	if err != nil {
 		exitApp(NewNotifyMessage(ERROR, nil, "Model Load Error", "", 1, err))
@@ -109,7 +100,6 @@ func main() {
 		exitApp(NewNotifyMessage(ERROR, nil, "Model Validate Background Tasks Error", "", 1, err))
 	}
 	model.Log()
-	notifyChannel = make(chan *NotifyMessage, 1)
 	go listenNotifyChannel()
 	for _, ras := range model.RunAtStart {
 		execDelayedAction(ras.action, ras.delay, notifyChannel, model.dataCache)
@@ -291,16 +281,21 @@ func buttonBar() *fyne.Container {
 		}))
 	}
 	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
-		m, err := NewModelFromFile(model.homePath, model.fileName, debugLogMain, true)
+		m, err := NewModelFromFile(model.homePath, model.fileName, debugLogMain, true, notifyChannel)
 		if err != nil {
 			go WarnDialog("Reload Failed", err.Error(), "", mainWindow, 20, debugLogMain)
 		} else {
-			model = m
-			if debugLogMain.IsLogging() {
-				debugLogMain.WriteLog("Model Reloaded")
-			}
-			for _, ras := range model.RunAtStart {
-				execDelayedAction(ras.action, ras.delay, notifyChannel, model.dataCache)
+			err = m.ValidateBackgroundTasks()
+			if err != nil {
+				go WarnDialog("Reload Validaion Failed", err.Error(), "", mainWindow, 20, debugLogMain)
+			} else {
+				model = m
+				if debugLogMain.IsLogging() {
+					debugLogMain.WriteLog("Model Reloaded")
+				}
+				for _, ras := range model.RunAtStart {
+					execDelayedAction(ras.action, ras.delay, notifyChannel, model.dataCache)
+				}
 			}
 		}
 	}))
@@ -346,20 +341,32 @@ func exitApp(data *NotifyMessage) {
 	os.Exit(data.code)
 }
 
-func getArg(i int, name, value string) (string, error) {
-	if value != "" {
-		return value, nil
-	}
-	l := 2
-	if strings.HasPrefix(os.Args[i], name) {
-		if strings.HasPrefix(os.Args[i], name+"=") {
-			l = 3
+func getArg(name string) (string, error) {
+	namelc := strings.ToLower(name)
+	for _, v := range os.Args {
+		vlc := strings.ToLower(v)
+		if strings.HasPrefix(vlc, namelc) {
+			l := 2
+			if strings.HasPrefix(vlc, namelc+"=") {
+				l = 3
+			}
+			s := v[l:]
+			if len(s) < 1 {
+				return "", fmt.Errorf("parameter '%s' value is undefined", namelc)
+			}
+			return s, nil
 		}
-		s := os.Args[i][l:]
-		if len(s) < 1 {
-			return "", fmt.Errorf("parameter '%s' value is undefined", name)
-		}
-		return s, nil
 	}
 	return "", nil
+}
+
+func hasArg(name string) bool {
+	namelc := strings.ToLower(name)
+	for _, v := range os.Args {
+		vlc := strings.ToLower(v)
+		if vlc == namelc {
+			return true
+		}
+	}
+	return false
 }

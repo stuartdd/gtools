@@ -48,17 +48,18 @@ var (
 )
 
 type Model struct {
-	debugLog     *LogData              // Log file for events in gtool
-	homePath     string                // Users home directory!
-	fileName     string                // Root config file name
-	jsonRoot     parser.NodeC          // Root Json objects
-	actionList   []*MultipleActionData // List of actions
-	dataCache    *DataCache            // List of values
-	AltExitTitle string                // Show additional butten to exit with RC 1
-	AltExitRc    int                   // Show additional butten to exit with RC 1
-	RunAtStart   []*BackgroundAction   // Action to run on load
-	RunAtEnd     []*BackgroundAction   // Action to run on exit
-	warning      string                // If the model loads dut with warnings
+	debugLog      *LogData              // Log file for events in gtool
+	homePath      string                // Users home directory!
+	fileName      string                // Root config file name
+	jsonRoot      parser.NodeC          // Root Json objects
+	actionList    []*MultipleActionData // List of actions
+	dataCache     *DataCache            // List of values
+	AltExitTitle  string                // Show additional butten to exit with RC 1
+	AltExitRc     int                   // Show additional butten to exit with RC 1
+	RunAtStart    []*BackgroundAction   // Action to run on load
+	RunAtEnd      []*BackgroundAction   // Action to run on exit
+	warning       string                // If the model loads dut with warnings
+	notifyChannel chan *NotifyMessage
 }
 
 type MultipleActionData struct {
@@ -117,7 +118,7 @@ func (sa *SingleAction) Dir() string {
 	return sa.directory
 }
 
-func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig bool) (*Model, error) {
+func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig bool, notifyChannel chan *NotifyMessage) (*Model, error) {
 	absFileName, err := filepath.Abs(relFileName)
 	if err != nil {
 		return nil, err
@@ -139,7 +140,7 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig
 		return nil, fmt.Errorf("primary 'config' node in file %s not found", absFileName)
 	}
 
-	mod := &Model{homePath: home, fileName: absFileName, jsonRoot: configData, warning: "", actionList: make([]*MultipleActionData, 0), dataCache: NewDataCache(), debugLog: debugLog}
+	mod := &Model{homePath: home, fileName: absFileName, jsonRoot: configData, warning: "", actionList: make([]*MultipleActionData, 0), dataCache: NewDataCache(notifyChannel), debugLog: debugLog, notifyChannel: notifyChannel}
 	if debugLog.IsLogging() {
 		debugLog.WriteLog(fmt.Sprintf("Config data loaded %s", mod.fileName))
 	}
@@ -204,7 +205,7 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig
 				if debugLog.IsLogging() {
 					debugLog.WriteLog(fmt.Sprintf("Loading local config \"%s\" from \"%s\"", localConfigFileAbs, mod.fileName))
 				}
-				localMod, err := NewModelFromFile(home, localConfigFileAbs, debugLog, false)
+				localMod, err := NewModelFromFile(home, localConfigFileAbs, debugLog, false, mod.notifyChannel)
 				if err == nil {
 					mod.MergeModel(localMod)
 				} else {

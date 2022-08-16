@@ -20,17 +20,13 @@ type ClipContent interface {
 	GetContent() string
 }
 
-//
 // Write stdout or stderr to stdout or stderr
-//
 type BaseWriter struct {
 	prefix string //  prefix is prepended to any output line
 	filter string //  filter filters the lines written (see README.md)
 }
 
-//
 // Write stdout or stderr to a file
-//
 type FileWriter struct {
 	fileName string
 	filter   string      // filter filters the lines written (see README.md)
@@ -41,14 +37,13 @@ type FileWriter struct {
 	stdOut   *BaseWriter // Used if file io failed and cannot be written to
 }
 
-//
 // Write stdout or stderr to memory cache
-//
 type CacheWriter struct {
 	name      string          // Used as the name for the cache
 	filter    string          // filter filters the lines written (see README.md)
 	cacheType ENUM_MEM_TYPE   // Properties of the cache entry.
 	sb        strings.Builder // The text in the cache
+	updated   bool
 }
 
 type HttpPostWriter struct {
@@ -58,15 +53,13 @@ type HttpPostWriter struct {
 	sb        strings.Builder // The text in the cache
 }
 
-//
 // Writer takes stdout (outFile) or stderr (errFile) and writes it to the defined receiver.
 //
-//   "outFile": "fileName" 			Will create the file 'fileName' and stream the content in to it
-//   "outFile": "append:fileName"   Will append to the file 'fileName'. It will be created if required
-//   "outFile": "memory:name"   	Will write the output to the memory cache with the name 'name'
-//   "outFile": "clip:name"   		Will write the output to the memory cache with the name 'name'
-//									AND copy it to the clipboard
-//
+//	  "outFile": "fileName" 			Will create the file 'fileName' and stream the content in to it
+//	  "outFile": "append:fileName"   Will append to the file 'fileName'. It will be created if required
+//	  "outFile": "memory:name"   	Will write the output to the memory cache with the name 'name'
+//	  "outFile": "clip:name"   		Will write the output to the memory cache with the name 'name'
+//										AND copy it to the clipboard
 func NewWriter(outDef, key string, defaultOut, stdErr *BaseWriter, dataCache *DataCache) io.Writer {
 	name, filter := splitNameFilter(outDef)
 	if name == "" {
@@ -162,7 +155,7 @@ func NewCacheWriter(name string, cacheType ENUM_MEM_TYPE) (*CacheWriter, error) 
 		return nil, fmt.Errorf("memory (cache) writer must have a name")
 	}
 	var sb strings.Builder
-	cw := &CacheWriter{name: cn, filter: cf, cacheType: cacheType, sb: sb}
+	cw := &CacheWriter{name: cn, filter: cf, cacheType: cacheType, sb: sb, updated: false}
 	return cw, nil
 }
 
@@ -174,14 +167,17 @@ func (cw *CacheWriter) Write(p []byte) (n int, err error) {
 			return 0, err
 		}
 	}
-	np, errp := cw.sb.Write(p)
-	if errp != nil {
-		return np, err
+	if len(p) > 0 {
+		np, errp := cw.sb.Write(p)
+		if errp != nil {
+			return np, err
+		}
+		cw.updated = true
 	}
 	return pLen, nil
 }
 
-func (cw *CacheWriter) WriteToEncryptedFile(key string) error {
+func (cw *CacheWriter) SaveToEncryptedFile(key string) error {
 	d, err := EncryptData([]byte(key), []byte(cw.GetContent()))
 	if err != nil {
 		return err
