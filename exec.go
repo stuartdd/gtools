@@ -8,9 +8,9 @@ import (
 )
 
 const (
+	RC_FAIL  = -2
 	RC_SETUP = -1
-	RC_CLEAN = 0
-	RC_ERROR = 1
+	RC_OK    = 0
 )
 
 func execDelayedAction(action *MultipleActionData, delay int, notifyChannel chan *NotifyMessage, dataCache *DataCache) {
@@ -18,7 +18,7 @@ func execDelayedAction(action *MultipleActionData, delay int, notifyChannel chan
 		delay = 100
 	}
 	if notifyChannel != nil {
-		notifyChannel <- NewNotifyMessage(LOG, action, "RunAtStart", fmt.Sprintf("delay = %d ms", delay), RC_CLEAN, nil)
+		notifyChannel <- NewNotifyMessage(LOG, action, "RunAtStart", fmt.Sprintf("delay = %d ms", delay), RC_OK, nil)
 	}
 	go func() {
 		time.Sleep(time.Duration(delay) * time.Millisecond)
@@ -28,11 +28,11 @@ func execDelayedAction(action *MultipleActionData, delay int, notifyChannel chan
 
 func execMultipleAction(data *MultipleActionData, notifyChannel chan *NotifyMessage, dataCache *DataCache) {
 	if notifyChannel != nil {
-		notifyChannel <- NewNotifyMessage(START, data, "Action Started", "", RC_CLEAN, nil)
+		notifyChannel <- NewNotifyMessage(START, data, "Action Started", "", RC_OK, nil)
 	}
 	defer func() {
 		if notifyChannel != nil {
-			notifyChannel <- NewNotifyMessage(DONE, data, "Action Complete", "", RC_CLEAN, nil)
+			notifyChannel <- NewNotifyMessage(DONE, data, "Action Complete", "", RC_OK, nil)
 		}
 	}()
 	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
@@ -43,7 +43,13 @@ func execMultipleAction(data *MultipleActionData, notifyChannel chan *NotifyMess
 		if err != nil {
 			if rc == RC_SETUP {
 				if notifyChannel != nil {
-					notifyChannel <- NewNotifyMessage(ERROR, data, "Error Setup", locationMsg, rc, err)
+					notifyChannel <- NewNotifyMessage(ERROR, data, "Error Setup Process", locationMsg, rc, err)
+				}
+				return
+			}
+			if rc == RC_FAIL {
+				if notifyChannel != nil {
+					notifyChannel <- NewNotifyMessage(ERROR, data, "Failed Post Process", locationMsg, rc, err)
 				}
 				return
 			}
@@ -158,20 +164,28 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 			mainWindow.Clipboard().SetContent(cp.GetContent())
 		}
 	}
+
 	if outEncKey != "" {
 		soE, ok := so.(Encrypted)
 		if ok {
-			soE.SaveToEncryptedFile(outEncKey)
+			if notifyChannel != nil {
+				notifyChannel <- NewNotifyMessage(SAVE_EN, nil, fmt.Sprintf("Save to enc file:%s", cw.name), "", 0, nil)
+			}
+			err = soE.SaveToEncryptedFile(outEncKey)
+			if err != nil {
+				return RC_FAIL, err
+			}
 		}
 	}
+
 	httpPost, ok := so.(*HttpPostWriter)
 	if ok {
 		err := httpPost.Post()
 		if err != nil {
-			return RC_ERROR, err
+			return RC_FAIL, err
 		}
 	}
-	return RC_CLEAN, nil
+	return RC_OK, nil
 }
 
 func substituteValuesIntoArgs(s []string, entryDialog func(*LocalValue) error, dataCache *DataCache) ([]string, error) {

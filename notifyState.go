@@ -15,6 +15,7 @@ const (
 	SET_LOC
 	SET_MEM
 	TO_CLIP
+	SAVE_EN
 	LOG
 )
 
@@ -83,6 +84,8 @@ func (nm *NotifyMessage) getState() string {
 		return "SET_MEM:"
 	case TO_CLIP:
 		return "TO_CLIP:"
+	case SAVE_EN:
+		return "SAVE_EN"
 	}
 	return "??????:"
 }
