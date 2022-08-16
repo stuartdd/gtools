@@ -12,7 +12,7 @@ type Reset interface {
 }
 
 type Encrypted interface {
-	WriteToEncryptedFile(string) error
+	SaveToEncryptedFile(string) error
 }
 
 type ClipContent interface {
@@ -44,6 +44,10 @@ type CacheWriter struct {
 	cacheType ENUM_MEM_TYPE   // Properties of the cache entry.
 	sb        strings.Builder // The text in the cache
 }
+
+var _ Encrypted = (*CacheWriter)(nil)
+var _ ClipContent = (*CacheWriter)(nil)
+var _ Reset = (*CacheWriter)(nil)
 
 type HttpPostWriter struct {
 	filter    string        // filter filters the lines written (see README.md)

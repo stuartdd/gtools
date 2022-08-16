@@ -161,7 +161,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	if outEncKey != "" {
 		soE, ok := so.(Encrypted)
 		if ok {
-			soE.WriteToEncryptedFile(outEncKey)
+			soE.SaveToEncryptedFile(outEncKey)
 		}
 	}
 	httpPost, ok := so.(*HttpPostWriter)
