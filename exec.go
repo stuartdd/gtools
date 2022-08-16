@@ -139,6 +139,16 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	if sa.delay > 0.0 {
 		time.Sleep(time.Duration(sa.delay) * time.Millisecond)
 	}
+
+	cw, ok := so.(*CacheWriter)
+	if ok {
+		if cw.cacheType == MEM_TYPE {
+			if notifyChannel != nil {
+				notifyChannel <- NewNotifyMessage(SET_MEM, nil, fmt.Sprintf("%s=%s", cw.name, cw.GetContent()), "", 0, nil)
+			}
+		}
+	}
+
 	cp, ok := so.(ClipContent)
 	if ok {
 		if cp.ShouldClip() {

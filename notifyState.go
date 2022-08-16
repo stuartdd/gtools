@@ -13,6 +13,7 @@ const (
 	WARN
 	EXIT
 	SET_LOC
+	SET_MEM
 	TO_CLIP
 	LOG
 )
@@ -78,6 +79,8 @@ func (nm *NotifyMessage) getState() string {
 		return "LOG:    "
 	case SET_LOC:
 		return "SET_LOC:"
+	case SET_MEM:
+		return "SET_MEM:"
 	case TO_CLIP:
 		return "TO_CLIP:"
 	}
