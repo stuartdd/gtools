@@ -140,7 +140,7 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig
 		return nil, fmt.Errorf("primary 'config' node in file %s not found", absFileName)
 	}
 
-	mod := &Model{homePath: home, fileName: absFileName, jsonRoot: configData, warning: "", actionList: make([]*MultipleActionData, 0), dataCache: NewDataCache(notifyChannel), debugLog: debugLog, notifyChannel: notifyChannel}
+	mod := &Model{homePath: home, fileName: absFileName, jsonRoot: configData, warning: "", actionList: make([]*MultipleActionData, 0), dataCache: NewDataCache(), debugLog: debugLog, notifyChannel: notifyChannel}
 	if debugLog.IsLogging() {
 		debugLog.WriteLog(fmt.Sprintf("Config data loaded %s", mod.fileName))
 	}

@@ -43,7 +43,6 @@ type CacheWriter struct {
 	filter    string          // filter filters the lines written (see README.md)
 	cacheType ENUM_MEM_TYPE   // Properties of the cache entry.
 	sb        strings.Builder // The text in the cache
-	updated   bool
 }
 
 type HttpPostWriter struct {
@@ -155,7 +154,7 @@ func NewCacheWriter(name string, cacheType ENUM_MEM_TYPE) (*CacheWriter, error) 
 		return nil, fmt.Errorf("memory (cache) writer must have a name")
 	}
 	var sb strings.Builder
-	cw := &CacheWriter{name: cn, filter: cf, cacheType: cacheType, sb: sb, updated: false}
+	cw := &CacheWriter{name: cn, filter: cf, cacheType: cacheType, sb: sb}
 	return cw, nil
 }
 
@@ -172,7 +171,6 @@ func (cw *CacheWriter) Write(p []byte) (n int, err error) {
 		if errp != nil {
 			return np, err
 		}
-		cw.updated = true
 	}
 	return pLen, nil
 }

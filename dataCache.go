@@ -25,15 +25,14 @@ type LocalValue struct {
 }
 
 type DataCache struct {
-	mu            sync.Mutex
-	memoryMap     map[string]*CacheWriter
-	localVarMap   map[string]*LocalValue
-	envMap        map[string]string
-	notifyChannel chan *NotifyMessage
+	mu          sync.Mutex
+	memoryMap   map[string]*CacheWriter
+	localVarMap map[string]*LocalValue
+	envMap      map[string]string
 }
 
-func newLocalValue(name, desc, defaultVal string, minLen int, isPassword, isFileName, isFileWatch, inputRequired bool, notifyChannel chan *NotifyMessage) *LocalValue {
-	return &LocalValue{name: name, desc: desc, _value: defaultVal, minLen: minLen, lastValue: "", isPassword: isPassword, isFileName: isFileName, isFileWatch: isFileWatch, inputDone: false, inputRequired: inputRequired, notifyChannel: notifyChannel}
+func newLocalValue(name, desc, defaultVal string, minLen int, isPassword, isFileName, isFileWatch, inputRequired bool) *LocalValue {
+	return &LocalValue{name: name, desc: desc, _value: defaultVal, minLen: minLen, lastValue: "", isPassword: isPassword, isFileName: isFileName, isFileWatch: isFileWatch, inputDone: false, inputRequired: inputRequired}
 }
 
 func (lv *LocalValue) String() string {
@@ -83,7 +82,7 @@ func (v *LocalValue) GetLastValueAsLocation() (fyne.ListableURI, error) {
 	return l, nil
 }
 
-func NewDataCache(notifyChannel chan *NotifyMessage) *DataCache {
+func NewDataCache() *DataCache {
 	m := make(map[string]string)
 	for _, e := range os.Environ() {
 		pair := strings.SplitN(e, "=", 2)
@@ -91,7 +90,7 @@ func NewDataCache(notifyChannel chan *NotifyMessage) *DataCache {
 			m[pair[0]] = pair[1]
 		}
 	}
-	return &DataCache{memoryMap: make(map[string]*CacheWriter), localVarMap: make(map[string]*LocalValue), envMap: m, notifyChannel: notifyChannel}
+	return &DataCache{memoryMap: make(map[string]*CacheWriter), localVarMap: make(map[string]*LocalValue), envMap: m}
 }
 
 func (dc *DataCache) LogLocalValues(debugLog *LogData) {
@@ -116,7 +115,7 @@ func (dc *DataCache) MergeLocalValuesMap(localMod *DataCache) {
 func (dc *DataCache) AddLocalValue(name, desc, defaultVal string, minLen int, isPassword, isFileName, isFileWatch, inputRequired bool) *LocalValue {
 	dc.mu.Lock()
 	defer dc.mu.Unlock()
-	lv := newLocalValue(name, desc, defaultVal, minLen, isPassword, isFileName, isFileWatch, inputRequired, dc.notifyChannel)
+	lv := newLocalValue(name, desc, defaultVal, minLen, isPassword, isFileName, isFileWatch, inputRequired)
 	dc.localVarMap[name] = lv
 	return lv
 }
@@ -130,9 +129,6 @@ func (dc *DataCache) ResetCache() {
 func (dc *DataCache) PutCacheWriter(cw *CacheWriter) {
 	dc.mu.Lock()
 	defer dc.mu.Unlock()
-	if dc.notifyChannel != nil {
-		dc.notifyChannel <- NewNotifyMessage(SET_VAL, nil, fmt.Sprintf("Add Memory Writer: %s", cw.name), "", 0, nil)
-	}
 	dc.memoryMap[cw.name] = cw
 }
 

@@ -142,6 +142,9 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	cp, ok := so.(ClipContent)
 	if ok {
 		if cp.ShouldClip() {
+			if notifyChannel != nil {
+				notifyChannel <- NewNotifyMessage(TO_CLIP, nil, fmt.Sprintf("Copied to Clipboard cmd:%s", sa.String()), "", 0, nil)
+			}
 			mainWindow.Clipboard().SetContent(cp.GetContent())
 		}
 	}

@@ -12,8 +12,8 @@ const (
 	ERROR
 	WARN
 	EXIT
-	SET_VAL
 	SET_LOC
+	TO_CLIP
 	LOG
 )
 
@@ -78,8 +78,8 @@ func (nm *NotifyMessage) getState() string {
 		return "LOG:    "
 	case SET_LOC:
 		return "SET_LOC:"
-	case SET_VAL:
-		return "SET_VAL:"
+	case TO_CLIP:
+		return "TO_CLIP:"
 	}
 	return "??????:"
 }
