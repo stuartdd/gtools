@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,7 +123,11 @@ func NewModelFromFile(home, relFileName string, debugLog *LogData, primaryConfig
 	if err != nil {
 		return nil, err
 	}
-	j, err := ioutil.ReadFile(absFileName)
+	file, err := os.Open(absFileName)
+	if err != nil {
+		return nil, err
+	}
+	j, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}

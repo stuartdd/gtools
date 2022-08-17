@@ -133,7 +133,9 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		defer seCloser.Close()
 	}
 	cmd.Stderr = se
-
+	//
+	// Ready to exec the commands
+	//
 	err = cmd.Start()
 	if err != nil {
 		return cmd.ProcessState.ExitCode(), err
@@ -142,6 +144,9 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	if err != nil {
 		return cmd.ProcessState.ExitCode(), err
 	}
+	//
+	// All writers and readers are complete!
+	//
 	if sa.delay > 0.0 {
 		time.Sleep(time.Duration(sa.delay) * time.Millisecond)
 	}

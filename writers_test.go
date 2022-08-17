@@ -2,7 +2,6 @@ package main
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -80,7 +79,7 @@ func readFileExp(t *testing.T, fileName string, expected string) {
 	if err != nil {
 		t.Fatalf("Error: Could not open file %s", fileName)
 	}
-	content, err := ioutil.ReadAll(file)
+	content, err := io.ReadAll(file)
 	if err != nil {
 		t.Fatalf("Error: Could not read file %s", fileName)
 	}

@@ -9,13 +9,13 @@ import (
 )
 
 type LogData struct {
-	logger   *log.Logger
-	queue    chan string
-	clearLog bool
+	logger     *log.Logger
+	queue      chan string
+	maxLineLen int
 }
 
-func NewLogData(fileName string, prefix string, clearLog bool) (*LogData, error) {
-	lg, err := setup(fileName, prefix, clearLog)
+func NewLogData(fileName string, prefix string, maxLineLen int, clearLog bool) (*LogData, error) {
+	lg, err := setup(fileName, prefix, maxLineLen, clearLog)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func NewLogData(fileName string, prefix string, clearLog bool) (*LogData, error)
 	return lg, nil
 }
 
-func setup(fileName string, prefix string, clearLog bool) (*LogData, error) {
+func setup(fileName string, prefix string, maxLineLen int, clearLog bool) (*LogData, error) {
 	if fileName == "" {
 		return nil, fmt.Errorf("log file name was not provided")
 	}
@@ -43,7 +43,7 @@ func setup(fileName string, prefix string, clearLog bool) (*LogData, error) {
 		return nil, fmt.Errorf("failed to open file")
 	}
 	l := log.New(file, prefix, log.Ldate|log.Ltime)
-	return &LogData{logger: l, queue: nil}, nil
+	return &LogData{logger: l, queue: nil, maxLineLen: maxLineLen}, nil
 }
 
 func (lw *LogData) IsLogging() bool {
@@ -71,7 +71,7 @@ func (lw *LogData) Close() {
 
 func (lw *LogData) WriteLog(l string) {
 	if lw.logger != nil && lw.queue != nil {
-		lw.queue <- cleanString(l, 100)
+		lw.queue <- cleanString(l, lw.maxLineLen)
 	}
 }
 

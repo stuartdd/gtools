@@ -61,9 +61,9 @@ func main() {
 	clearLog := hasArg("-lc")
 
 	if logFileName == "" {
-		debugLogMain = &LogData{logger: nil, queue: nil}
+		debugLogMain = &LogData{logger: nil, queue: nil, maxLineLen: 0}
 	} else {
-		debugLogMain, err = NewLogData(logFileName, "gtool:", clearLog)
+		debugLogMain, err = NewLogData(logFileName, "gtool:", 100, clearLog)
 		if err != nil {
 			exitApp(NewNotifyMessage(ERROR, nil, fmt.Sprintf("Failed to create logfile '%s'", logFileName), "", 1, err))
 		}
@@ -107,6 +107,9 @@ func main() {
 	gui()
 }
 
+/*
+Provide a thread for GUI updates that can be triggured via a queue.
+*/
 func listenNotifyChannel() {
 	for {
 		notifyMessage := <-notifyChannel
@@ -283,10 +286,16 @@ func buttonBar() *fyne.Container {
 	bb.Add(widget.NewButtonWithIcon("Reload", theme.MediaReplayIcon(), func() {
 		m, err := NewModelFromFile(model.homePath, model.fileName, debugLogMain, true, notifyChannel)
 		if err != nil {
+			//
+			// Warn but dont wait as this button press thread must exit so WarnDialog button can do it's thing
+			//
 			go WarnDialog("Reload Failed", err.Error(), "", mainWindow, 20, debugLogMain)
 		} else {
 			err = m.ValidateBackgroundTasks()
 			if err != nil {
+				//
+				// Warn but dont wait as this button press thread must exit so WarnDialog button can do it's thing
+				//
 				go WarnDialog("Reload Validaion Failed", err.Error(), "", mainWindow, 20, debugLogMain)
 			} else {
 				model = m
