@@ -1,9 +1,6 @@
 # gtools
 
 ## TO-DO
-
-* Sort out JSON single list conversion from list to string
-* DONE 27/07/2022: Reload does not re-run 'at start' task
 * Run action in background
 * Run timed action
 
@@ -65,7 +62,7 @@ Full definition of all valid fields:
             "rc": 1,
             "name": "Start Code",
             "desc": "Start the dev environment",
-            "hide": false,
+            "hide": "no",
             "list": [
                 {
                     "cmd": "code",
@@ -133,11 +130,10 @@ Form 2 is as JSON ojects. In this case the actions are displayed in alphabetical
 Each individual action is defined as follows:
 
 ```json
-"hide": true,
 "rc" : 1,
 "name": "Start VSCode",
 "desc": "Start the dev environment",
-"hide": false
+"hide": "yes",
 "list": [
     {
         "cmd": "code",
@@ -160,7 +156,7 @@ Each individual action is defined as follows:
 | ----------- | ----------- | --------- |
 | name | Defined the value displayed in the action button | required |
 | desc | Defined the value displayed along side the action button | optional = "" |
-| hide | If contains '%{' or 'yes' then don't show | optional = "" |
+| hide | If contains '%{' or 'yes' then don't show. See 'Hide Actions' below | optional = "" |
 | list | Defines a number of commands to be run one after the other | required |
 | rc | Once the list of actions is complete, Exit the application with the return code given | Optional |
 
@@ -278,6 +274,8 @@ Note * items apply to 'stderr' as well. 'stderr' definitions cannot be used with
 
 ### Example http GET and POST
 
+---
+
 Note that '%{USER}' will be substituted for the uesr id in environment variable USER.
 
 GET:
@@ -386,6 +384,70 @@ See the test file 'main_test.go' for examples of filters and their returned valu
 | "xyz,,,\n" | All lines containing 'xyz' are output followed by a new line |
 | "0,,,, \|1,,,\n" | Line 0 is written followed by a ', ' followed by line 1 folllowed by a new line |
 
+
+### Value Substitution
+
+---
+
+All values in the json definitions are subject to 'Value Substitution'. This occurs in the GUI as well as before the exectution of an action.
+
+The basic form of substitution replaces '%{name}' with a value defined by the given name. If name cannot be found then the value remains unchanged.
+
+The value is located as follows:
+
+First: The memory values are searched for a value with the given namme. 
+
+The following will create a memory value named 'MyMemValue' with the stream of characters passed to stdout:
+
+``` json
+"stdout":"memory|MyMemValue
+```
+
+The following will substitute the value in to the first arg of a command:
+
+```json
+"args": [
+    "%{MyMemValue}"
+]
+```
+
+Second: The local values a searched.
+
+If a local value is defined as follows:
+
+```json
+"commitMessage": {
+    "desc": "Commit message",
+    "value": "?",
+    "input": true,
+    "minLen": 5
+}
+```
+
+The following will substitute the value in to the first arg of a command:
+
+```json
+"args": [
+    "%{commitMessage}"
+]
+```
+
+As the local value is an input ("input": true) it's value will be requested when the action is run. Prior to that (when the GUI is rendered) any substitutions will simply use the value in the 'value' parameter (in this case ?). This is useful for default values and for hiding actions, see 'Hide Actions' below.
+
+Finally: The envirionment variables are searched.
+
+
+```json
+{
+    "cmd": "cp",
+    "args": ["%{HOME}/gtool-config.json", "%{HOME}/gtool-config.bak"]
+}
+```
+
+The above will copy the file if the current users home directory.
+
+Note that ALL substitution names are case sensitive.
+
 ### Local Values
 
 ---
@@ -421,6 +483,8 @@ In the above extract 'commitMessage' is the {name} of the field.
 
 ### Encryption and Decryption
 
+---
+
 A local value is required for encryption and decryption. The name if refered to in the 'stdin' or 'stdout' definition.
 
 ``` json
@@ -455,7 +519,7 @@ The output from the command 'git config -l' will be writen to the 'encFile.txt' 
 
 Before the command is run a password entry dialog will be presented for entry of the password. Once entered the value is retained for all further use of the local value 'myPw1'.
 
-### Decryption (in)
+### Decryption (stdin)
 
 The system input (stdin) will be read from file 'encdFile.txt' and decrypted using the password (key) defined in the local value.
 
@@ -475,3 +539,68 @@ The system input (stdin) will be read from file 'encdFile.txt' and decrypted usi
 ```
 
 Before the command is run a password entry dialog will be presented for entry of the password. Once entered the value is retained for all further use of the local value 'myPw1'.
+
+### Hide actions
+
+---
+
+The 'hide' option for Actions can use templated values to optionally hide a action.
+
+There are many reasons to hide options:
+
+1) The action is run when the application loads (runAtStart) of when the application terminated (runAtEnd)
+2) Based on the existance of a specific file.
+3) Based on the existance of a file name (or any local value) that has not been defined yet.
+
+The way hide works:
+
+If the value of hide = "yes" ("hide":"yes") then the action will never be displayed.
+
+If the value of hide = starts with '%{' then the action will not be displayed.
+
+For option 1 above use: 
+
+```json
+"hide": "yes",
+```
+
+For option 2 above: 
+
+If a local value is defined as follows:
+
+```json
+"MyFileWatch": {
+    "desc": "FileWatch: MyFile.txt",
+    "value": "MyFile.txt",
+    "isFileWatch": true
+}
+```
+
+Then the substitution of %{MyFileWatch} will return %{MyFileWatch} if the file does NOT currently exist. 
+
+As this substitution starts with '%{' the following 'hide' option will hide the action if the file does not exist.
+
+```json
+"hide": "%{MyFileWatch}",
+```
+
+For option 3 above: 
+
+If a local value is defined as follows:
+
+```json
+"tempFile": {
+    "desc": "Temp File",
+    "input": true,
+    "value": "%{}",
+    "isFileName": true
+}
+```
+
+Then until the file has been selected it's value will be '%{}'. This also works if the value is 'yes'.
+
+```json
+"hide": "%{tempFile}"
+```
+
+So until a file has been defined the action is hidden.

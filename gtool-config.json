@@ -16,7 +16,7 @@
             "tempFile": {
                 "desc": "Temp File",
                 "input": true,
-                "value": "",
+                "value": "%{}",
                 "isFileName": true
             },
             "PiServer": {
@@ -92,7 +92,7 @@
         {
             "tab": "Z:Test",
             "name": "Encrypt a file",
-            "desc": "Read, Encrypt and Write",
+            "desc": "Read, Encrypt and Write a selected file",
             "list": [
                 {
                     "cmd": "cat",
@@ -107,11 +107,12 @@
         {
             "tab": "Z:Test",
             "name": "Decrypt a file",
-            "desc": "Read, Decrypt and Write",
+            "hide": "%{tempFile}",
+            "desc": "Read, Decrypt and Write File:'%{tempFile}.blob'",
             "list": [
                 {
                     "cmd": "cat",
-                    "stdin": "file:%{tempFile}",
+                    "stdin": "file:%{tempFile}.blob",
                     "inPwName": "password1",
                     "stdout": "%{tempFile}.txt"
                 }
@@ -119,24 +120,8 @@
         },
         {
             "tab": "Z:Test",
-            "name": "Write Enc",
-            "desc": "Write an encrypted file",
-            "list": [
-                {
-                    "cmd": "git",
-                    "stdout": "%{tempFile}",
-                    "args": [
-                        "config",
-                        "-l"
-                    ],
-                    "outPwName": "password1"
-                }
-            ]
-        },
-        {
-            "tab": "Z:Test",
             "name": "HTTP Get",
-            "desc": "Read a message from server",
+            "desc": "Read git config from server",
             "list": [
                 {
                     "cmd": "cat",
@@ -147,7 +132,7 @@
         {
             "tab": "Z:Test",
             "name": "HTTP Post",
-            "desc": "Read a message from server",
+            "desc": "Send git config to server",
             "list": [
                 {
                     "cmd": "git",
@@ -161,23 +146,25 @@
         },
         {
             "tab": "Z:Test",
-            "name": "Read Enc",
-            "desc": "Read an encrypted file",
-            "list": [
-                {
-                    "cmd": "cat",
-                    "stdin": "file:%{tempFile}",
-                    "inPwName": "password1"
-                }
-            ]
-        },
-        {
-            "tab": "Z:Test",
             "name": "Return NZ",
             "desc": "Return NZ response to cmd",
             "list": [
                 {
                     "cmd": "./retrc",
+                    "args": [
+                        "9"
+                    ]
+                }
+            ]
+        },
+        {
+            "tab": "Z:Test",
+            "name": "Return NZ (Ignore)",
+            "desc": "Return NZ response to cmd",
+            "list": [
+                {
+                    "cmd": "./retrc",
+                    "ignoreError":true,
                     "args": [
                         "9"
                     ]

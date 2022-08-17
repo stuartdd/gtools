@@ -153,7 +153,7 @@ func (dc *DataCache) Template(s string, dialogFunc func(*LocalValue) error) (str
 		}
 		lv, found := dc.localVarMap[name]
 		if found {
-			if !lv.inputDone && lv.inputRequired {
+			if !lv.inputDone && lv.inputRequired && dialogFunc != nil {
 				err := dialogFunc(lv)
 				if err != nil {
 					return "", err
