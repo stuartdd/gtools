@@ -287,14 +287,14 @@ func buttonBar() *fyne.Container {
 		m, err := NewModelFromFile(model.homePath, model.fileName, debugLogMain, true, notifyChannel)
 		if err != nil {
 			//
-			// Warn but dont wait as this button press thread must exit so WarnDialog button can do it's thing
+			// Warn but don't wait as this button press thread must exit so WarnDialog button can do it's thing
 			//
 			go WarnDialog("Reload Failed", err.Error(), "", mainWindow, 20, debugLogMain)
 		} else {
 			err = m.ValidateBackgroundTasks()
 			if err != nil {
 				//
-				// Warn but dont wait as this button press thread must exit so WarnDialog button can do it's thing
+				// Warn but don't wait as this button press thread must exit so WarnDialog button can do it's thing
 				//
 				go WarnDialog("Reload Validaion Failed", err.Error(), "", mainWindow, 20, debugLogMain)
 			} else {

@@ -77,7 +77,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	if err != nil {
 		return RC_SETUP, err
 	}
-	args, err := substituteValuesIntoArgs(sa.args, validatedEntryDialog, dataCache)
+	args, err := substituteValuesIntoArgs(sa.args, ValidatedEntryDialog, dataCache)
 	if err != nil {
 		return RC_SETUP, err
 	}
@@ -86,7 +86,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		cmd.Dir = sa.directory
 	}
 	if sa.sysinDef != "" {
-		tmp, err := substituteValuesIntoString(sa.sysinDef, sysInDialog, dataCache)
+		tmp, err := substituteValuesIntoString(sa.sysinDef, SysInDialog, dataCache)
 		if err != nil {
 			return RC_SETUP, err
 		}
@@ -104,7 +104,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 		}
 		cmd.Stdin = si
 	}
-	sysoutDef, err := substituteValuesIntoString(sa.sysoutDef, sysOutDialog, dataCache)
+	sysoutDef, err := substituteValuesIntoString(sa.sysoutDef, SysOutDialog, dataCache)
 	if err != nil {
 		return RC_SETUP, err
 	}
@@ -119,7 +119,7 @@ func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc s
 	}
 	cmd.Stdout = so
 
-	syserrDef, err := substituteValuesIntoString(sa.syserrDef, sysOutDialog, dataCache)
+	syserrDef, err := substituteValuesIntoString(sa.syserrDef, SysOutDialog, dataCache)
 	if err != nil {
 		return RC_SETUP, err
 	}
@@ -214,7 +214,7 @@ func derivePasswordFromName(name string, sa *SingleAction, dataCache *DataCache)
 		lv, ok := dataCache.GetLocalValue(name)
 		if ok {
 			if lv.inputRequired && !lv.inputDone {
-				err := validatedEntryDialog(lv)
+				err := ValidatedEntryDialog(lv)
 				if err != nil {
 					return "", err
 				}

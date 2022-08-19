@@ -30,26 +30,26 @@ type MyDialog struct {
 	isValid  func(string, *LocalValue) bool
 }
 
-func validatedEntryDialog(localValue *LocalValue) error {
-	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
-		return len(strings.TrimSpace(s)) >= iv.minLen
-	}, mainWindow, debugLogMain).Run(VALUE_DIALOG_TYPE).err
-}
-
-func sysInDialog(localValue *LocalValue) error {
-	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
-		return true
-	}, mainWindow, debugLogMain).Run(SYSIN_DIALOG_TYPE).err
-}
-
-func sysOutDialog(localValue *LocalValue) error {
-	return NewMyDialog(localValue, func(s string, iv *LocalValue) bool {
-		return true
-	}, mainWindow, debugLogMain).Run(SYSOUT_DIALOG_TYPE).err
-}
-
-func NewMyDialog(value *LocalValue, validate func(string, *LocalValue) bool, parentWindow fyne.Window, debugLog *LogData) *MyDialog {
+func newMyDialog(value *LocalValue, validate func(string, *LocalValue) bool, parentWindow fyne.Window, debugLog *LogData) *MyDialog {
 	return &MyDialog{value: value, isValid: validate, parent: parentWindow, wait: true, err: nil, debugLog: debugLog}
+}
+
+func ValidatedEntryDialog(localValue *LocalValue) error {
+	return newMyDialog(localValue, func(s string, iv *LocalValue) bool {
+		return len(strings.TrimSpace(s)) >= iv.minLen
+	}, mainWindow, debugLogMain).runMyDialog(VALUE_DIALOG_TYPE).err
+}
+
+func SysInDialog(localValue *LocalValue) error {
+	return newMyDialog(localValue, func(s string, iv *LocalValue) bool {
+		return true
+	}, mainWindow, debugLogMain).runMyDialog(SYSIN_DIALOG_TYPE).err
+}
+
+func SysOutDialog(localValue *LocalValue) error {
+	return newMyDialog(localValue, func(s string, iv *LocalValue) bool {
+		return true
+	}, mainWindow, debugLogMain).runMyDialog(SYSOUT_DIALOG_TYPE).err
 }
 
 func WarnDialog(title, message, additional string, parentWindow fyne.Window, timeout int, debugLog *LogData) int {
@@ -124,7 +124,7 @@ func (d *MyDialog) onChange(s string, ok *widget.Button) {
 	}
 }
 
-func (d *MyDialog) Run(dt ENUM_ENTRY_TYPE) *MyDialog {
+func (d *MyDialog) runMyDialog(dt ENUM_ENTRY_TYPE) *MyDialog {
 	if d.value.isFileName {
 		if dt == SYSOUT_DIALOG_TYPE {
 			fd := dialog.NewFileSave(func(uc fyne.URIWriteCloser, err error) {
@@ -135,7 +135,7 @@ func (d *MyDialog) Run(dt ENUM_ENTRY_TYPE) *MyDialog {
 					d.value.lastValue = filepath.Dir(uc.URI().Path())
 				}
 			}, d.parent)
-			l, err := d.value.GetLastValueAsLocation()
+			l, err := d.value.GetLastValueAsListableURI()
 			if err != nil {
 				d.abort(err.Error())
 				return d
@@ -151,7 +151,7 @@ func (d *MyDialog) Run(dt ENUM_ENTRY_TYPE) *MyDialog {
 					d.value.lastValue = filepath.Dir(uc.URI().Path())
 				}
 			}, d.parent)
-			l, err := d.value.GetLastValueAsLocation()
+			l, err := d.value.GetLastValueAsListableURI()
 			if err != nil {
 				d.abort(err.Error())
 				return d

@@ -64,7 +64,7 @@ func (v *LocalValue) SetValue(val string) {
 	v._value = val
 }
 
-func (v *LocalValue) GetLastValueAsLocation() (fyne.ListableURI, error) {
+func (v *LocalValue) GetLastValueAsListableURI() (fyne.ListableURI, error) {
 	if v.lastValue == "" {
 		d, err := os.Getwd()
 		if err == nil {
