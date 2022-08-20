@@ -11,6 +11,7 @@ const (
 	EXIT_RC
 	ERROR
 	WARN
+	REFRESH
 	EXIT
 	SET_LOC
 	SET_MEM
@@ -74,6 +75,8 @@ func (nm *NotifyMessage) getState() string {
 		return "DONE:   "
 	case START:
 		return "START:  "
+	case REFRESH:
+		return "REFRESH:"
 	case EXIT:
 		return "EXIT:   "
 	case LOG:

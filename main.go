@@ -15,19 +15,25 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+type ViewState int
+
 const (
 	RESET = "\033[0m"
 	GREEN = "\033[;32m"
 	RED   = "\033[;31m"
 
 	CONFIG_FILE = "gtool-config.json"
+
+	VIEW_ACTIONS ViewState = iota
+	VIEW_DATA
 )
 
 var (
 	stdColourPrefix    = []string{GREEN, RED}
 	mainWindow         fyne.Window
-	mainWindowActive   bool = false
-	selectedTabIndex   int  = -1
+	mainWindowActive   bool      = false
+	selectedTabIndex   int       = -1
+	currentView        ViewState = VIEW_ACTIONS
 	model              *Model
 	actionRunning      bool = false
 	actionRunningLabel *widget.Label
@@ -133,6 +139,8 @@ func listenNotifyChannel() {
 			case ERROR:
 				WarnDialog(fmt.Sprintf("Action '%s' failed:", notifyMessage.action.name), notifyMessage.err.Error(), "", mainWindow, 8, debugLogMain)
 				refresh()
+			case REFRESH:
+				refresh()
 			case WARN:
 				refresh()
 			case EXIT:
@@ -197,24 +205,36 @@ func refresh() {
 
 	var c fyne.CanvasObject
 	bb := buttonBar()
-	for _, a := range model.actionList {
-		s, _ := substituteValuesIntoString(a.hideExp, nil, model.dataCache)
-		a.shouldHide = strings.Contains(s, "%{") || s == "yes"
+	if currentView == VIEW_ACTIONS {
+		for _, a := range model.actionList {
+			s, _ := substituteValuesIntoString(a.hideExp, nil, model.dataCache)
+			a.shouldHide = strings.Contains(s, "%{") || s == "yes"
+		}
+		tabList, singleName := model.GetTabs()
+		if len(tabList) > 1 {
+			tabs := centerPanelTabbed(tabList)
+			if selectedTabIndex >= 0 {
+				tabs.SelectIndex(selectedTabIndex)
+			}
+			tabs.OnSelected = func(ti *container.TabItem) {
+				selectedTabIndex = tabs.SelectedIndex()
+			}
+			c = container.NewBorder(bb, nil, nil, nil, tabs)
+		} else {
+			selectedTabIndex = -1
+			cp := centerPanelActions(tabList[singleName])
+			c = container.NewBorder(bb, nil, nil, nil, cp)
+		}
 	}
-	tabList, singleName := model.GetTabs()
-	if len(tabList) > 1 {
-		tabs := centerPanelTabbed(tabList)
-		if selectedTabIndex >= 0 {
-			tabs.SelectIndex(selectedTabIndex)
-		}
-		tabs.OnSelected = func(ti *container.TabItem) {
-			selectedTabIndex = tabs.SelectedIndex()
-		}
+	if currentView == VIEW_DATA {
+		tabs := container.NewAppTabs()
+		t1 := container.NewTabItem("Local", centerPanelLocalData(model.dataCache))
+		t2 := container.NewTabItem("Memory", centerPanelLocalData(model.dataCache))
+		t3 := container.NewTabItem("Env", centerPanelLocalData(model.dataCache))
+		tabs.Append(t1)
+		tabs.Append(t2)
+		tabs.Append(t3)
 		c = container.NewBorder(bb, nil, nil, nil, tabs)
-	} else {
-		selectedTabIndex = -1
-		cp := centerPanel(tabList[singleName])
-		c = container.NewBorder(bb, nil, nil, nil, cp)
 	}
 	mainWindow.SetContent(c)
 }
@@ -227,7 +247,7 @@ func centerPanelTabbed(actionsByTab map[string][]*MultipleActionData) *container
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		cp := centerPanel(actionsByTab[name])
+		cp := centerPanelActions(actionsByTab[name])
 		ti := container.NewTabItem(getNameAfterTag(name), cp)
 		tabs.Append(ti)
 	}
@@ -242,7 +262,22 @@ func getNameAfterTag(in string) string {
 	return in
 }
 
-func centerPanel(actionData []*MultipleActionData) *fyne.Container {
+func centerPanelLocalData(dataCache *DataCache) *fyne.Container {
+	vp := container.NewVBox()
+	vp.Add(widget.NewSeparator())
+	for _, l := range dataCache.localVarMap {
+		if !l.isPassword {
+			hp := container.NewHBox()
+			hp.Add(widget.NewLabel(l.name))
+			hp.Add(widget.NewLabel("->"))
+			hp.Add(widget.NewLabel(l.GetValue()))
+			vp.Add(hp)
+		}
+	}
+	return vp
+}
+
+func centerPanelActions(actionData []*MultipleActionData) *fyne.Container {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
 	min := 3
@@ -308,6 +343,21 @@ func buttonBar() *fyne.Container {
 			}
 		}
 	}))
+	if currentView == VIEW_ACTIONS {
+		bb.Add(widget.NewButtonWithIcon("Memory", theme.ComputerIcon(), func() {
+			currentView = VIEW_DATA
+			if notifyChannel != nil {
+				notifyChannel <- NewNotifyMessage(REFRESH, nil, "View memory data", "", 0, nil)
+			}
+		}))
+	} else {
+		bb.Add(widget.NewButtonWithIcon("Actions", theme.ComputerIcon(), func() {
+			currentView = VIEW_ACTIONS
+			if notifyChannel != nil {
+				notifyChannel <- NewNotifyMessage(REFRESH, nil, "View action data", "", 0, nil)
+			}
+		}))
+	}
 	actionRunningLabel = widget.NewLabel("")
 	bb.Add(actionRunningLabel)
 	return bb
