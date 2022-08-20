@@ -268,9 +268,8 @@ func centerPanelLocalData(dataCache *DataCache) *fyne.Container {
 	for _, l := range dataCache.localVarMap {
 		if !l.isPassword {
 			hp := container.NewHBox()
-			hp.Add(widget.NewLabel(l.name))
-			hp.Add(widget.NewLabel("->"))
-			hp.Add(widget.NewLabel(l.GetValue()))
+			hp.Add(container.New(NewFixedHLayout(150, 13), NewStringFieldRight(l.name, 100)))
+			hp.Add(container.New(NewFixedHLayout(200, 13), widget.NewLabel(l.GetValueClean(100))))
 			vp.Add(hp)
 		}
 	}

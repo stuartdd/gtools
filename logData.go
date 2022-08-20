@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -71,22 +70,6 @@ func (lw *LogData) Close() {
 
 func (lw *LogData) WriteLog(l string) {
 	if lw.logger != nil && lw.queue != nil {
-		lw.queue <- cleanString(l, lw.maxLineLen)
+		lw.queue <- CleanString(l, lw.maxLineLen)
 	}
-}
-
-func cleanString(s string, max int) string {
-	var sb strings.Builder
-	count := 0
-	for _, r := range s {
-		if r < 32 {
-			sb.WriteString(fmt.Sprintf("[%d]", r))
-		} else {
-			sb.WriteRune(r)
-		}
-		if count >= max {
-			break
-		}
-	}
-	return sb.String()
 }

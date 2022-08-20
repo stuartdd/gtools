@@ -53,6 +53,11 @@ func (v *LocalValue) GetValue() string {
 	return v._value
 }
 
+func (v *LocalValue) GetValueClean(max int) string {
+	return CleanString(v.GetValue(), max)
+
+}
+
 func (v *LocalValue) SetValue(val string) {
 	if v.notifyChannel != nil {
 		if v.isPassword {
