@@ -1,22 +1,12 @@
 package main
 
 import (
-	"net/http"
-	"strings"
-
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
 var ts = fyne.TextStyle{Bold: true, Italic: false, Monospace: true, Symbol: false, TabWidth: 2}
-
-func NewLayout(url, mimetype, data string) (int, error) {
-	resp, err := http.Post(url, "text/plain", strings.NewReader(data))
-	if err != nil {
-		return 999, err
-	}
-	return resp.StatusCode, nil
-}
 
 type FixedHLayout struct {
 	minW float32
@@ -33,20 +23,17 @@ func (d *FixedHLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 
 func (d *FixedHLayout) Layout(objects []fyne.CanvasObject, containerSize fyne.Size) {
 	for _, o := range objects {
-		if containerSize.Width < d.minW {
-			o.Resize(fyne.NewSize(d.minW, d.h))
-		} else {
-			o.Resize(fyne.NewSize(containerSize.Width, d.h))
-		}
+		o.Resize(fyne.NewSize(d.minW, d.h))
 	}
 }
 
-func NewStringFieldRight(s string, w int) *widget.Label {
+func MeasureChar() float32 {
 	ts := fyne.TextStyle{Bold: true, Italic: false, Monospace: true, Symbol: false, TabWidth: 2}
-	return widget.NewLabelWithStyle(PadLeft(s, w), fyne.TextAlignLeading, ts)
+	si := fyne.CurrentApp().Settings().Theme().Size(theme.SizeNameText)
+	return fyne.MeasureText("M", si, ts).Width
 }
 
-func NewStringFieldLeft(s string, w int) *widget.Label {
+func NewStringFieldLeft(s string) *widget.Label {
 	ts := fyne.TextStyle{Bold: true, Italic: false, Monospace: true, Symbol: false, TabWidth: 2}
-	return widget.NewLabelWithStyle(PadRight(s, w), fyne.TextAlignLeading, ts)
+	return widget.NewLabelWithStyle(s, fyne.TextAlignLeading, ts)
 }

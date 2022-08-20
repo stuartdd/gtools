@@ -7,16 +7,15 @@ import (
 
 func CleanString(s string, max int) string {
 	var sb strings.Builder
-	count := 0
 	for _, r := range s {
 		if r < 32 {
 			sb.WriteString(fmt.Sprintf("[%d]", r))
 		} else {
 			sb.WriteRune(r)
 		}
-		if count >= max {
-			break
-		}
+	}
+	if sb.Len() > max {
+		return sb.String()[0:max]
 	}
 	return sb.String()
 }

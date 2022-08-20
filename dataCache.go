@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 
@@ -55,7 +56,6 @@ func (v *LocalValue) GetValue() string {
 
 func (v *LocalValue) GetValueClean(max int) string {
 	return CleanString(v.GetValue(), max)
-
 }
 
 func (v *LocalValue) SetValue(val string) {
@@ -104,6 +104,33 @@ func (dc *DataCache) LogLocalValues(debugLog *LogData) {
 			debugLog.WriteLog(lv.String())
 		}
 	}
+}
+
+func (dc *DataCache) GetLocalValueNamesSorted() []string {
+	sl := make([]string, 0)
+	for n, _ := range dc.localVarMap {
+		sl = append(sl, n)
+	}
+	sort.Strings(sl)
+	return sl
+}
+
+func (dc *DataCache) GetMemoryValueNamesSorted() []string {
+	sl := make([]string, 0)
+	for n, _ := range dc.memoryMap {
+		sl = append(sl, n)
+	}
+	sort.Strings(sl)
+	return sl
+}
+
+func (dc *DataCache) GetEnvValueNamesSorted() []string {
+	sl := make([]string, 0)
+	for n, _ := range dc.envMap {
+		sl = append(sl, n)
+	}
+	sort.Strings(sl)
+	return sl
 }
 
 func (dc *DataCache) GetLocalValue(name string) (*LocalValue, bool) {

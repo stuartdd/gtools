@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -265,12 +266,45 @@ func getNameAfterTag(in string) string {
 func centerPanelLocalData(dataCache *DataCache) *fyne.Container {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
-	for _, l := range dataCache.localVarMap {
-		if !l.isPassword {
-			hp := container.NewHBox()
-			hp.Add(container.New(NewFixedHLayout(150, 13), NewStringFieldRight(l.name, 100)))
-			hp.Add(container.New(NewFixedHLayout(200, 13), widget.NewLabel(l.GetValueClean(100))))
-			vp.Add(hp)
+
+	sortedNames := dataCache.GetLocalValueNamesSorted()
+	max := 0
+	for _, n := range sortedNames {
+		if len(n) > max {
+			max = len(n)
+		}
+	}
+	cw := int(math.Floor(float64(mainWindow.Canvas().Content().MinSize().Width) / float64(MeasureChar())))
+	for _, n := range sortedNames {
+		l, found := dataCache.GetLocalValue(n)
+		if found {
+			if !l.isPassword {
+				hp := container.NewHBox()
+				s := PadLeft(l.name, max) + " ("
+				if l.inputRequired {
+					s = s + "I"
+				} else {
+					s = s + "-"
+				}
+				if l.inputDone {
+					s = s + ""
+				} else {
+					s = s + "-"
+				}
+				if l.isFileName {
+					s = s + "F"
+				} else {
+					s = s + "-"
+				}
+				if l.isFileWatch {
+					s = s + "W"
+				} else {
+					s = s + "-"
+				}
+				s = s + ") "
+				hp.Add(container.New(NewFixedHLayout(100, 14), NewStringFieldLeft(s+l.GetValueClean(cw-(len(s)+1)))))
+				vp.Add(hp)
+			}
 		}
 	}
 	return vp
@@ -374,7 +408,7 @@ func notifyActionRunning(newState bool, name string) {
 func actionClose(data *NotifyMessage) {
 	for _, rae := range model.RunAtEnd {
 		if rae != nil && rae.action != nil {
-			execMultipleAction(rae.action, notifyChannel, model.dataCache)
+			execMultipleAction(rae.action, nil, model.dataCache)
 		}
 	}
 	mainWindow.Close()
