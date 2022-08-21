@@ -67,7 +67,7 @@ type MultipleActionData struct {
 	name       string          // The name of the action(s)
 	desc       string          // The description of the action(s)
 	hideExp    string          // We ony show the action if the expression does NOT contain %{
-	shouldHide bool            // Dont show at all, ever.
+	ShouldHide bool            // Dont show at all, ever.
 	rc         int             // If non ZERO exit the apprication with this error code when action complete
 	commands   []*SingleAction // The list of actions (commands) to execute for this action
 }
@@ -545,7 +545,7 @@ func (m *Model) GetTabs() (map[string][]*MultipleActionData, string) {
 	resp := make(map[string][]*MultipleActionData, 0)
 	singleName := ""
 	for _, a := range m.actionList {
-		if !a.shouldHide {
+		if !a.ShouldHide {
 			if a.tab == "" {
 				singleName = "Main"
 			} else {
@@ -712,7 +712,7 @@ func getStringList(node parser.NodeC, name, msg string) ([]string, error) {
 }
 
 func NewActionData(name, tabName, desc, hide string, exitCode int) *MultipleActionData {
-	return &MultipleActionData{name: name, tab: tabName, desc: desc, rc: exitCode, hideExp: hide, shouldHide: false, commands: make([]*SingleAction, 0)}
+	return &MultipleActionData{name: name, tab: tabName, desc: desc, rc: exitCode, hideExp: hide, ShouldHide: false, commands: make([]*SingleAction, 0)}
 }
 
 func NewSingleAction(cmd string, args []string, directory, sysinDef, outPwName, inPwName, sysoutDef, syserrDef string, delay float64, ignoreError bool) *SingleAction {

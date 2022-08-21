@@ -209,7 +209,7 @@ func refresh() {
 	if currentView == VIEW_ACTIONS {
 		for _, a := range model.actionList {
 			s, _ := substituteValuesIntoString(a.hideExp, nil, model.dataCache)
-			a.shouldHide = strings.Contains(s, "%{") || s == "yes"
+			a.ShouldHide = strings.Contains(s, "%{") || s == "yes"
 		}
 		tabList, singleName := model.GetTabs()
 		if len(tabList) > 1 {
@@ -229,9 +229,9 @@ func refresh() {
 	}
 	if currentView == VIEW_DATA {
 		tabs := container.NewAppTabs()
-		t1 := container.NewTabItem("Local", centerPanelLocalData(model.dataCache))
-		t2 := container.NewTabItem("Memory", centerPanelLocalData(model.dataCache))
-		t3 := container.NewTabItem("Env", centerPanelLocalData(model.dataCache))
+		t1 := container.NewTabItem("Local", container.NewVScroll(centerPanelLocalData(model.dataCache)))
+		t2 := container.NewTabItem("Memory", container.NewVScroll(centerPanelMemoryData(model.dataCache)))
+		t3 := container.NewTabItem("Env", container.NewVScroll(centerPanelEnvData(model.dataCache)))
 		tabs.Append(t1)
 		tabs.Append(t2)
 		tabs.Append(t3)
@@ -262,6 +262,62 @@ func getNameAfterTag(in string) string {
 	}
 	return in
 }
+func centerPanelEnvData(dataCache *DataCache) *fyne.Container {
+	vp := container.NewVBox()
+	vp.Add(widget.NewSeparator())
+
+	sortedNames := dataCache.GetEnvValueNamesSorted()
+	max := 0
+	for _, n := range sortedNames {
+		if len(n) > max {
+			max = len(n)
+		}
+	}
+	cw := int(math.Floor(float64(mainWindow.Canvas().Content().MinSize().Width) / float64(MeasureChar())))
+	maxMax := (cw / 5) * 2
+	if max > maxMax {
+		max = maxMax
+	}
+	for _, n := range sortedNames {
+		ev, found := dataCache.envMap[n]
+		if found {
+			hp := container.NewHBox()
+			var s string
+			if len(n) > max {
+				s = PadLeft(n, max-2) + "...= "
+			} else {
+				s = PadLeft(n, max) + " = "
+			}
+			hp.Add(container.New(NewFixedHLayout(100, 14), NewStringFieldLeft(s+CleanString(ev, cw-(len(s)+1)))))
+			vp.Add(hp)
+		}
+	}
+	return vp
+}
+
+func centerPanelMemoryData(dataCache *DataCache) *fyne.Container {
+	vp := container.NewVBox()
+	vp.Add(widget.NewSeparator())
+
+	sortedNames := dataCache.GetMemoryValueNamesSorted()
+	max := 0
+	for _, n := range sortedNames {
+		if len(n) > max {
+			max = len(n)
+		}
+	}
+	cw := int(math.Floor(float64(mainWindow.Canvas().Content().MinSize().Width) / float64(MeasureChar())))
+	for _, n := range sortedNames {
+		mv := dataCache.GetCacheWriter(n)
+		if mv != nil {
+			hp := container.NewHBox()
+			s := PadLeft(mv.name, max) + " = "
+			hp.Add(container.New(NewFixedHLayout(100, 14), NewStringFieldLeft(s+CleanString(mv.GetContent(), cw-(len(s)+1)))))
+			vp.Add(hp)
+		}
+	}
+	return vp
+}
 
 func centerPanelLocalData(dataCache *DataCache) *fyne.Container {
 	vp := container.NewVBox()
@@ -287,7 +343,7 @@ func centerPanelLocalData(dataCache *DataCache) *fyne.Container {
 					s = s + "-"
 				}
 				if l.inputDone {
-					s = s + ""
+					s = s + "D"
 				} else {
 					s = s + "-"
 				}
@@ -315,7 +371,7 @@ func centerPanelActions(actionData []*MultipleActionData) *fyne.Container {
 	vp.Add(widget.NewSeparator())
 	min := 3
 	for _, l := range actionData {
-		if !l.shouldHide {
+		if !l.ShouldHide {
 			hp := container.NewHBox()
 			btn := newActionButton(l.name, theme.SettingsIcon(), func(action *MultipleActionData) {
 				if !actionRunning {
@@ -377,14 +433,14 @@ func buttonBar() *fyne.Container {
 		}
 	}))
 	if currentView == VIEW_ACTIONS {
-		bb.Add(widget.NewButtonWithIcon("Memory", theme.ComputerIcon(), func() {
+		bb.Add(widget.NewButtonWithIcon("Values", theme.ComputerIcon(), func() {
 			currentView = VIEW_DATA
 			if notifyChannel != nil {
-				notifyChannel <- NewNotifyMessage(REFRESH, nil, "View memory data", "", 0, nil)
+				notifyChannel <- NewNotifyMessage(REFRESH, nil, "View value data", "", 0, nil)
 			}
 		}))
 	} else {
-		bb.Add(widget.NewButtonWithIcon("Actions", theme.ComputerIcon(), func() {
+		bb.Add(widget.NewButtonWithIcon("Actions", theme.SettingsIcon(), func() {
 			currentView = VIEW_ACTIONS
 			if notifyChannel != nil {
 				notifyChannel <- NewNotifyMessage(REFRESH, nil, "View action data", "", 0, nil)
