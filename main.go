@@ -30,10 +30,12 @@ const (
 )
 
 var (
-	stdColourPrefix    = []string{GREEN, RED}
-	mainWindow         fyne.Window
-	mainWindowActive   bool      = false
-	selectedTabIndex   int       = -1
+	stdColourPrefix       = []string{GREEN, RED}
+	mainWindow            fyne.Window
+	mainWindowActive      bool = false
+	selectedTabIndex      int  = -1
+	selectedValueTabIndex int  = -1
+
 	currentView        ViewState = VIEW_ACTIONS
 	model              *Model
 	actionRunning      bool = false
@@ -182,6 +184,7 @@ func gui() {
 		mainWindow.SetTitle("Current dir:" + wd)
 	}
 	warningAtStart()
+	mainWindow.SetFixedSize(true)
 	mainWindowActive = true
 	mainWindow.ShowAndRun()
 }
@@ -226,14 +229,20 @@ func refresh() {
 		}
 	}
 	if currentView == VIEW_DATA {
+		cw := int(math.Floor(float64(mainWindow.Canvas().Size().Width) / float64(MeasureChar())))
 		tabs := container.NewAppTabs()
-		t1 := container.NewTabItem("Local", container.NewVScroll(centerPanelLocalData(model.dataCache)))
-		t2 := container.NewTabItem("Memory", container.NewVScroll(centerPanelMemoryData(model.dataCache)))
-		t3 := container.NewTabItem("Env", container.NewVScroll(centerPanelEnvData(model.dataCache)))
+		t1 := container.NewTabItem("Local", container.NewVScroll(centerPanelLocalData(model.dataCache, cw)))
+		t2 := container.NewTabItem("Memory", container.NewVScroll(centerPanelMemoryData(model.dataCache, cw)))
+		t3 := container.NewTabItem("Env", container.NewVScroll(centerPanelEnvData(model.dataCache, cw)))
 		tabs.Append(t1)
 		tabs.Append(t2)
 		tabs.Append(t3)
-		tabs.Refresh()
+		if selectedValueTabIndex >= 0 {
+			tabs.SelectIndex(selectedValueTabIndex)
+		}
+		tabs.OnSelected = func(ti *container.TabItem) {
+			selectedValueTabIndex = tabs.SelectedIndex()
+		}
 		c = container.NewBorder(bb, nil, nil, nil, tabs)
 	}
 	mainWindow.SetContent(c)
@@ -261,7 +270,7 @@ func getNameAfterTag(in string) string {
 	}
 	return in
 }
-func centerPanelEnvData(dataCache *DataCache) *fyne.Container {
+func centerPanelEnvData(dataCache *DataCache, cw int) *fyne.Container {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
 
@@ -272,7 +281,6 @@ func centerPanelEnvData(dataCache *DataCache) *fyne.Container {
 			max = len(n)
 		}
 	}
-	cw := int(math.Floor(float64(mainWindow.Canvas().Content().MinSize().Width) / float64(MeasureChar())))
 	maxMax := (cw / 5) * 2
 	if max > maxMax {
 		max = maxMax
@@ -294,7 +302,7 @@ func centerPanelEnvData(dataCache *DataCache) *fyne.Container {
 	return vp
 }
 
-func centerPanelMemoryData(dataCache *DataCache) *fyne.Container {
+func centerPanelMemoryData(dataCache *DataCache, cw int) *fyne.Container {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
 
@@ -305,7 +313,6 @@ func centerPanelMemoryData(dataCache *DataCache) *fyne.Container {
 			max = len(n)
 		}
 	}
-	cw := int(math.Floor(float64(mainWindow.Canvas().Content().MinSize().Width) / float64(MeasureChar())))
 	for _, n := range sortedNames {
 		mv := dataCache.GetCacheWriter(n)
 		if mv != nil {
@@ -318,7 +325,7 @@ func centerPanelMemoryData(dataCache *DataCache) *fyne.Container {
 	return vp
 }
 
-func centerPanelLocalData(dataCache *DataCache) *fyne.Container {
+func centerPanelLocalData(dataCache *DataCache, cw int) *fyne.Container {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
 
@@ -329,7 +336,6 @@ func centerPanelLocalData(dataCache *DataCache) *fyne.Container {
 			max = len(n)
 		}
 	}
-	cw := int(math.Floor(float64(mainWindow.Canvas().Content().MinSize().Width) / float64(MeasureChar())))
 	for _, n := range sortedNames {
 		l, found := dataCache.GetLocalValue(n)
 		if found {
