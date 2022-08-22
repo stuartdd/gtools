@@ -108,7 +108,7 @@ func (dc *DataCache) LogLocalValues(debugLog *LogData) {
 
 func (dc *DataCache) GetLocalValueNamesSorted() []string {
 	sl := make([]string, 0)
-	for n, _ := range dc.localVarMap {
+	for n := range dc.localVarMap {
 		sl = append(sl, n)
 	}
 	sort.Strings(sl)
@@ -117,7 +117,7 @@ func (dc *DataCache) GetLocalValueNamesSorted() []string {
 
 func (dc *DataCache) GetMemoryValueNamesSorted() []string {
 	sl := make([]string, 0)
-	for n, _ := range dc.memoryMap {
+	for n := range dc.memoryMap {
 		sl = append(sl, n)
 	}
 	sort.Strings(sl)
@@ -126,7 +126,7 @@ func (dc *DataCache) GetMemoryValueNamesSorted() []string {
 
 func (dc *DataCache) GetEnvValueNamesSorted() []string {
 	sl := make([]string, 0)
-	for n, _ := range dc.envMap {
+	for n := range dc.envMap {
 		sl = append(sl, n)
 	}
 	sort.Strings(sl)
