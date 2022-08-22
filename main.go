@@ -181,8 +181,6 @@ func gui() {
 	} else {
 		mainWindow.SetTitle("Current dir:" + wd)
 	}
-	mainWindow.Resize(fyne.NewSize(300, 100))
-	mainWindow.SetFixedSize(true)
 	warningAtStart()
 	mainWindowActive = true
 	mainWindow.ShowAndRun()
@@ -235,6 +233,7 @@ func refresh() {
 		tabs.Append(t1)
 		tabs.Append(t2)
 		tabs.Append(t3)
+		tabs.Refresh()
 		c = container.NewBorder(bb, nil, nil, nil, tabs)
 	}
 	mainWindow.SetContent(c)

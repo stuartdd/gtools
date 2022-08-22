@@ -6,6 +6,9 @@ import (
 )
 
 func CleanString(s string, max int) string {
+	if max < 1 {
+		return ""
+	}
 	var sb strings.Builder
 	for _, r := range s {
 		if r < 32 {
