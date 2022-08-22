@@ -35,8 +35,8 @@ func execMultipleAction(data *MultipleActionData, notifyChannel chan *NotifyMess
 			notifyChannel <- NewNotifyMessage(DONE, data, "Action Complete", "", RC_OK, nil)
 		}
 	}()
-	stdOut := NewBaseWriter("", stdColourPrefix[STD_OUT])
-	stdErr := NewBaseWriter("", stdColourPrefix[STD_ERR])
+	stdOut := NewSysoutWriter("", stdColourPrefix[STD_OUT])
+	stdErr := NewSysoutWriter("", stdColourPrefix[STD_ERR])
 	for i, act := range data.commands {
 		locationMsg := fmt.Sprintf("Action '%s' step '%d' path '%s'", data.desc, i, act.Dir())
 		rc, err := execSingleAction(act, stdOut, stdErr, data.desc, dataCache)
@@ -68,7 +68,7 @@ func execMultipleAction(data *MultipleActionData, notifyChannel chan *NotifyMess
 	}
 }
 
-func execSingleAction(sa *SingleAction, stdOut, stdErr *BaseWriter, actionDesc string, dataCache *DataCache) (int, error) {
+func execSingleAction(sa *SingleAction, stdOut, stdErr *SysoutWriter, actionDesc string, dataCache *DataCache) (int, error) {
 	outEncKey, err := derivePasswordFromName(sa.outPwName, sa, dataCache)
 	if err != nil {
 		return RC_SETUP, err

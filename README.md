@@ -335,7 +335,7 @@ For example:
 "stdout":"outfile.txt|l1,s1,p1|n2,s2,p2,d2"
 ```
 
-A _'filter'_ follows an 'stdin' or 'stdout' descriptor separated by '|' 
+A _'filter'_ follows a 'stdin' or 'stdout' descriptor separated by '|' 
 
 A _'filter'_ is divided in to _'selector'_(s) by a '|' char.
 

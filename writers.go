@@ -21,7 +21,7 @@ type ClipContent interface {
 }
 
 // Write stdout or stderr to stdout or stderr
-type BaseWriter struct {
+type SysoutWriter struct {
 	prefix string //  prefix is prepended to any output line
 	filter string //  filter filters the lines written (see README.md)
 }
@@ -29,12 +29,12 @@ type BaseWriter struct {
 // Write stdout or stderr to a file
 type FileWriter struct {
 	fileName string
-	filter   string      // filter filters the lines written (see README.md)
-	password string      // If the file requires encryption then this is NOT ""
-	file     *os.File    // The file handle
-	canWrite bool        // flag indicates that io can be written to the file
-	stdErr   *BaseWriter // Used to report errors with file management
-	stdOut   *BaseWriter // Used if file io failed and cannot be written to
+	filter   string        // filter filters the lines written (see README.md)
+	password string        // If the file requires encryption then this is NOT ""
+	file     *os.File      // The file handle
+	canWrite bool          // flag indicates that io can be written to the file
+	stdErr   *SysoutWriter // Used to report errors with file management
+	stdOut   *SysoutWriter // Used if file io failed and cannot be written to
 }
 
 // Write stdout or stderr to memory cache
@@ -63,13 +63,13 @@ type HttpPostWriter struct {
 //	  "outFile": "memory:name"   	Will write the output to the memory cache with the name 'name'
 //	  "outFile": "clip:name"   		Will write the output to the memory cache with the name 'name'
 //										AND copy it to the clipboard
-func NewWriter(outDef, key string, defaultOut, stdErr *BaseWriter, dataCache *DataCache) io.Writer {
+func NewWriter(outDef, key string, defaultStdOut, defaultStdErr *SysoutWriter, dataCache *DataCache) io.Writer {
 	name, filter := splitNameFilter(outDef)
 	if name == "" {
 		if filter == "" {
-			return defaultOut
+			return defaultStdOut
 		}
-		return NewBaseWriter(filter, defaultOut.prefix)
+		return NewSysoutWriter(filter, defaultStdOut.prefix)
 	}
 	var err error
 	var fn string
@@ -87,8 +87,8 @@ func NewWriter(outDef, key string, defaultOut, stdErr *BaseWriter, dataCache *Da
 		if cw == nil {
 			cw, err = NewCacheWriter(fn+"|"+filter, typ)
 			if err != nil {
-				stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
-				return defaultOut
+				defaultStdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
+				return defaultStdOut
 			}
 			dataCache.PutCacheWriter(cw)
 		}
@@ -97,8 +97,8 @@ func NewWriter(outDef, key string, defaultOut, stdErr *BaseWriter, dataCache *Da
 	if key != "" {
 		cw, err := NewCacheWriter(fn+"|"+filter, typ)
 		if err != nil {
-			stdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
-			return defaultOut
+			defaultStdErr.Write([]byte(fmt.Sprintf("Failed to create '%s' writer '%s'. '%s'", CLIP_BOARD_PREF, fn, err.Error())))
+			return defaultStdOut
 		}
 		return cw
 	}
@@ -110,10 +110,10 @@ func NewWriter(outDef, key string, defaultOut, stdErr *BaseWriter, dataCache *Da
 		f, err = os.Create(fn)
 	}
 	if err != nil {
-		stdErr.Write([]byte(fmt.Sprintf("Failed to create file writer %s. %s", fn, err.Error())))
-		return defaultOut
+		defaultStdErr.Write([]byte(fmt.Sprintf("Failed to create file writer %s. %s", fn, err.Error())))
+		return defaultStdOut
 	}
-	return &FileWriter{fileName: fn, password: key, file: f, filter: filter, canWrite: true, stdOut: defaultOut, stdErr: stdErr}
+	return &FileWriter{fileName: fn, password: key, file: f, filter: filter, canWrite: true, stdOut: defaultStdOut, stdErr: defaultStdErr}
 }
 
 func (hpw *HttpPostWriter) Write(p []byte) (n int, err error) {
@@ -136,11 +136,11 @@ func NewHttpPostWriter(url, filter string, prefix string) *HttpPostWriter {
 	return &HttpPostWriter{url: url, filter: filter, sb: sb}
 }
 
-func NewBaseWriter(filter string, prefix string) *BaseWriter {
-	return &BaseWriter{filter: filter, prefix: prefix}
+func NewSysoutWriter(filter string, prefix string) *SysoutWriter {
+	return &SysoutWriter{filter: filter, prefix: prefix}
 }
 
-func (mw *BaseWriter) Write(p []byte) (n int, err error) {
+func (mw *SysoutWriter) Write(p []byte) (n int, err error) {
 	pLen := len(p)
 	if mw.filter != "" {
 		p, err = Filter(p, mw.filter)

@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	testStdOutW    = NewBaseWriter("", stdColourPrefix[STD_OUT])
-	testStdErrW    = NewBaseWriter("", stdColourPrefix[STD_ERR])
+	testStdOutW    = NewSysoutWriter("", stdColourPrefix[STD_OUT])
+	testStdErrW    = NewSysoutWriter("", stdColourPrefix[STD_ERR])
 	testDataCacheW = NewDataCache()
 )
 

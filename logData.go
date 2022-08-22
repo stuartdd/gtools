@@ -14,22 +14,6 @@ type LogData struct {
 }
 
 func NewLogData(fileName string, prefix string, maxLineLen int, clearLog bool) (*LogData, error) {
-	lg, err := setup(fileName, prefix, maxLineLen, clearLog)
-	if err != nil {
-		return nil, err
-	}
-
-	lg.queue = make(chan string, 20)
-
-	go func(ld *LogData) {
-		for l := range lg.queue {
-			ld.logger.Println(l)
-		}
-	}(lg)
-	return lg, nil
-}
-
-func setup(fileName string, prefix string, maxLineLen int, clearLog bool) (*LogData, error) {
 	if fileName == "" {
 		return nil, fmt.Errorf("log file name was not provided")
 	}
@@ -42,7 +26,16 @@ func setup(fileName string, prefix string, maxLineLen int, clearLog bool) (*LogD
 		return nil, fmt.Errorf("failed to open file")
 	}
 	l := log.New(file, prefix, log.Ldate|log.Ltime)
-	return &LogData{logger: l, queue: nil, maxLineLen: maxLineLen}, nil
+	lg := &LogData{logger: l, queue: nil, maxLineLen: maxLineLen}
+	lg.queue = make(chan string, 20)
+
+	go func(ld *LogData) {
+		for l := range lg.queue {
+			ld.logger.Println(l)
+		}
+	}(lg)
+
+	return lg, nil
 }
 
 func (lw *LogData) IsLogging() bool {

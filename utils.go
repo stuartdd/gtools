@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -45,4 +46,34 @@ func PadLeft(s string, w int) string {
 	}
 	sb.WriteString(s)
 	return sb.String()
+}
+
+func GetArg(name string) (string, error) {
+	namelc := strings.ToLower(name)
+	for _, v := range os.Args {
+		vlc := strings.ToLower(v)
+		if strings.HasPrefix(vlc, namelc) {
+			l := 2
+			if strings.HasPrefix(vlc, namelc+"=") {
+				l = 3
+			}
+			s := v[l:]
+			if len(s) < 1 {
+				return "", fmt.Errorf("parameter '%s' value is undefined", namelc)
+			}
+			return s, nil
+		}
+	}
+	return "", nil
+}
+
+func HasArg(name string) bool {
+	namelc := strings.ToLower(name)
+	for _, v := range os.Args {
+		vlc := strings.ToLower(v)
+		if vlc == namelc {
+			return true
+		}
+	}
+	return false
 }

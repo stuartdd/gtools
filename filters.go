@@ -95,8 +95,8 @@ func parseSelectArgs(args []string, desc string) ([]*Select, error) {
 	return sels, nil
 }
 
-func selectLineWithArgs(args []*Select, ln int, line string, sb *strings.Builder) {
-	for _, s := range args {
+func selectLineWithArgs(selectList []*Select, ln int, line string, sb *strings.Builder) {
+	for _, s := range selectList {
 		if ln == s.line || (s.line == -1 && s.contains != "" && strings.Contains(line, s.contains)) {
 			if s.index < 0 || s.delim == "" {
 				sb.WriteString(line)

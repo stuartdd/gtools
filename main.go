@@ -59,15 +59,15 @@ func main() {
 		NewNotifyMessage(ERROR, nil, "Load Error", "", 1, err)
 	}
 
-	configFileName, err := getArg("-c")
+	configFileName, err := GetArg("-c")
 	if err != nil {
 		exitApp(NewNotifyMessage(ERROR, nil, "", "", 1, err))
 	}
-	logFileName, err := getArg("-l")
+	logFileName, err := GetArg("-l")
 	if err != nil {
 		exitApp(NewNotifyMessage(ERROR, nil, "", "", 1, err))
 	}
-	clearLog := hasArg("-lc")
+	clearLog := HasArg("-lc")
 
 	if logFileName == "" {
 		debugLogMain = &LogData{logger: nil, queue: nil, maxLineLen: 0}
@@ -231,12 +231,9 @@ func refresh() {
 	if currentView == VIEW_DATA {
 		cw := int(math.Floor(float64(mainWindow.Canvas().Size().Width) / float64(MeasureChar())))
 		tabs := container.NewAppTabs()
-		t1 := container.NewTabItem("Local", container.NewVScroll(centerPanelLocalData(model.dataCache, cw)))
-		t2 := container.NewTabItem("Memory", container.NewVScroll(centerPanelMemoryData(model.dataCache, cw)))
-		t3 := container.NewTabItem("Env", container.NewVScroll(centerPanelEnvData(model.dataCache, cw)))
-		tabs.Append(t1)
-		tabs.Append(t2)
-		tabs.Append(t3)
+		tabs.Append(container.NewTabItem("Local", container.NewVScroll(centerPanelLocalData(model.dataCache, cw))))
+		tabs.Append(container.NewTabItem("Memory", container.NewVScroll(centerPanelMemoryData(model.dataCache, cw))))
+		tabs.Append(container.NewTabItem("Env", container.NewVScroll(centerPanelEnvData(model.dataCache, cw))))
 		if selectedValueTabIndex >= 0 {
 			tabs.SelectIndex(selectedValueTabIndex)
 		}
@@ -270,6 +267,7 @@ func getNameAfterTag(in string) string {
 	}
 	return in
 }
+
 func centerPanelEnvData(dataCache *DataCache, cw int) *fyne.Container {
 	vp := container.NewVBox()
 	vp.Add(widget.NewSeparator())
@@ -492,34 +490,4 @@ func exitApp(data *NotifyMessage) {
 		debugLogMain.Close()
 	}
 	os.Exit(data.code)
-}
-
-func getArg(name string) (string, error) {
-	namelc := strings.ToLower(name)
-	for _, v := range os.Args {
-		vlc := strings.ToLower(v)
-		if strings.HasPrefix(vlc, namelc) {
-			l := 2
-			if strings.HasPrefix(vlc, namelc+"=") {
-				l = 3
-			}
-			s := v[l:]
-			if len(s) < 1 {
-				return "", fmt.Errorf("parameter '%s' value is undefined", namelc)
-			}
-			return s, nil
-		}
-	}
-	return "", nil
-}
-
-func hasArg(name string) bool {
-	namelc := strings.ToLower(name)
-	for _, v := range os.Args {
-		vlc := strings.ToLower(v)
-		if vlc == namelc {
-			return true
-		}
-	}
-	return false
 }
