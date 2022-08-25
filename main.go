@@ -39,10 +39,12 @@ var (
 	currentView        ViewState = VIEW_ACTIONS
 	model              *Model
 	actionRunning      bool = false
+	actionRunningText  string
 	actionRunningLabel *widget.Label
-	debugLogMain       *LogData
-	refreshLock        sync.Mutex
-	notifyChannel      chan *NotifyMessage
+
+	debugLogMain  *LogData
+	refreshLock   sync.Mutex
+	notifyChannel chan *NotifyMessage
 )
 
 type ActionButton struct {
@@ -242,6 +244,7 @@ func refresh() {
 		}
 		c = container.NewBorder(bb, nil, nil, nil, tabs)
 	}
+	actionRunningLabel.SetText(actionRunningText)
 	mainWindow.SetContent(c)
 }
 
@@ -458,10 +461,11 @@ func buttonBar() *fyne.Container {
 func notifyActionRunning(newState bool, name string) {
 	actionRunning = newState
 	if actionRunning {
-		actionRunningLabel.SetText(fmt.Sprintf("Running '%s'", name))
+		actionRunningText = fmt.Sprintf("Running '%s'", name)
 	} else {
-		actionRunningLabel.SetText("")
+		actionRunningText = ""
 	}
+	actionRunningLabel.SetText(actionRunningText)
 }
 
 func actionClose(data *NotifyMessage) {

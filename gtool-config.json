@@ -165,12 +165,12 @@
         {
             "tab": "Z:Test",
             "name": "Long Run",
-            "desc": "Run for 5 seconds",
+            "desc": "Run for 9 seconds",
             "list": [
                 {
                     "cmd": "sleep",
                     "args": [
-                        "5"
+                        "9"
                     ]
                 }
             ]
